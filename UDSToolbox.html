@@ -1,0 +1,4076 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UDS 诊断查询工具箱 V1.0.0</title>
+<style>
+/* ================= 主题 =================
+   整套配色只在这里定义一次：所有组件都通过 var(--x) / rgba(var(--x-rgb),a) 取色，
+   换主题 = 换这一组变量的值。html[data-theme] 由右上角三档开关写入。 */
+:root{
+  /* ---- 面 / 线 / 字 ---- */
+  --bg:#0d1117; --bg2:#0f141c; --panel:#161b24; --panel2:#1c2330; --panel3:#222a38;
+  --line:#2a3441; --line2:#374454; --line3:#4a5a70;
+  --txt:#e6edf3; --txt2:#9aa8b9; --txt3:#6b7787;
+  --link:#7b8798;   /* 请求↔响应连线：中性灰，明暗两套各自调过亮度 */
+  /* ---- 语义色 ----
+     帧类型四色刻意避开蓝与绿：那两支已经被「请求蓝 / 响应绿」占用，
+     同一个卡片头上同时出现绿药丸和绿帧类型会分不清谁是谁。
+     于是：单帧紫、首帧洋红、连续帧橙、流控帧灰（流控帧是链路控制，弱化正好）。
+     PCI 字段用琥珀金，只在字节格描边与图例里出现。 */
+  --sf:#bc8cff; --ff:#f778ba; --cf:#f0883e; --fc:#8b949e;
+  --pci:#e3b341;
+  /* 请求 / 响应：ID 药丸、卡片左侧条、对话标签、连线共用这两支 */
+  --req:#58a6ff; --res:#3fb950;
+  --neg:#f85149; --acc:#22d3ee; --warn:#d29922;
+  /* ---- 同色系 rgb 三元组，供 rgba(var(--x-rgb),alpha) 调透明度 ---- */
+  --sf-rgb:188,140,255; --ff-rgb:247,120,186; --cf-rgb:240,136,62; --fc-rgb:139,148,158;
+  --pci-rgb:227,179,65; --req-rgb:88,166,255; --res-rgb:63,185,80;
+  --neg-rgb:248,81,73; --acc-rgb:34,211,238; --warn-rgb:210,153,34;
+  /* ---- 反相叠加色：暗色主题用白色提亮，亮色主题翻成黑色压暗 ---- */
+  --hl-rgb:255,255,255;
+  /* ---- 派生语义色 ---- */
+  --hd:#121821; --sunken:#0b0f15;
+  --btn-fg:#06222a; --acc-hi:#4ae0f5;
+  --neg-soft:#ff8a80; --fc-soft:#c3ccd6; --neg-soft-dim:rgba(255,138,128,.67);
+  --glass:rgba(22,27,36,.95); --glass-nrc:rgba(32,19,21,.95);
+  --shadow:0 4px 14px rgba(0,0,0,.33);
+  --mono: ui-monospace, SFMono-Regular, "Cascadia Code", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
+  color-scheme:dark;
+}
+/* 明亮主题：只是把同一套变量换值 */
+html[data-theme="light"]{
+  --bg:#f6f8fa; --bg2:#eef2f6; --panel:#ffffff; --panel2:#f2f5f9; --panel3:#e7ecf2;
+  --line:#d6dde5; --line2:#bcc6d2; --line3:#9aa6b4;
+  --txt:#1f2328; --txt2:#505a66; --txt3:#6e7781;
+  --link:#8b949e;
+  --sf:#8250df; --ff:#bf3989; --cf:#bc4c00; --fc:#57606a;
+  --pci:#7d5a00;
+  --req:#0969da; --res:#1a7f37;
+  --neg:#cf222e; --acc:#0b7f96; --warn:#9a6700;
+  --sf-rgb:130,80,223; --ff-rgb:191,57,137; --cf-rgb:188,76,0; --fc-rgb:87,96,106;
+  --pci-rgb:125,90,0; --req-rgb:9,105,218; --res-rgb:26,127,55;
+  --neg-rgb:207,34,46; --acc-rgb:11,127,150; --warn-rgb:154,103,0;
+  --hl-rgb:0,0,0;
+  --hd:#ffffff; --sunken:#f1f5f9;
+  --btn-fg:#ffffff; --acc-hi:#096b7f;
+  --neg-soft:#a40e26; --fc-soft:#3f4854; --neg-soft-dim:rgba(164,14,38,.72);
+  --glass:rgba(255,255,255,.94); --glass-nrc:rgba(255,243,244,.95);
+  --shadow:0 4px 14px rgba(31,35,40,.12);
+  color-scheme:light;
+}
+*{box-sizing:border-box; margin:0; padding:0}
+html,body{height:100%}
+/* 常驻滚动条槽：长报文把页面撑高、竖滚动条出现时，布局宽度不会突然少 15px */
+html{scrollbar-gutter:stable}
+body{
+  background:var(--bg); color:var(--txt); font-family:var(--sans);
+  font-size:14px; line-height:1.6; -webkit-font-smoothing:antialiased;
+}
+::selection{background:rgba(var(--acc-rgb),0.27)}
+/* ---------- header ---------- */
+header{
+  padding:22px 28px 14px; border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,var(--hd) 0%,var(--bg) 100%);
+}
+.hd-top{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap}
+/* ---------- 主题开关：跟随系统 / 明亮 / 黑暗 ---------- */
+.theme-sw{
+  margin-left:auto; align-self:center; flex:0 0 auto;
+  display:flex; gap:2px; padding:2px; border-radius:9px;
+  border:1px solid var(--line2); background:rgba(var(--hl-rgb),0.04);
+}
+.theme-sw button{
+  display:inline-flex; align-items:center; gap:5px; cursor:pointer;
+  border:1px solid transparent; background:transparent; color:var(--txt3);
+  font-family:var(--sans); font-size:11.5px; line-height:1.5; padding:4px 9px;
+  border-radius:7px; white-space:nowrap;
+  transition:color .15s, background .15s, border-color .15s;
+}
+.theme-sw button svg{width:13px; height:13px; display:block; flex:0 0 auto}
+.theme-sw button:hover{color:var(--txt); background:rgba(var(--hl-rgb),0.07)}
+.theme-sw button.on{
+  color:var(--acc); background:rgba(var(--acc-rgb),0.12);
+  border-color:rgba(var(--acc-rgb),0.4); font-weight:600;
+}
+.theme-sw button:focus-visible{outline:2px solid rgba(var(--acc-rgb),0.53); outline-offset:1px}
+/* 窄屏只留图标，靠 title 说明 */
+@media(max-width:780px){
+  .theme-sw button span{display:none}
+  .theme-sw button{padding:5px 7px}
+}
+h1{font-size:19px; font-weight:650; letter-spacing:.3px}
+h1 span{color:var(--acc)}
+/* 版本号徽章：紧跟在工具箱后面，小号等宽字 + 淡青底，不抢标题 */
+h1 .ver{
+  display:inline-block; vertical-align:2px; margin-left:9px;
+  font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.6px;
+  line-height:1.55; padding:1px 7px; border-radius:20px; white-space:nowrap;
+  color:var(--acc); border:1px solid rgba(var(--acc-rgb),0.42);
+  background:rgba(var(--acc-rgb),0.1);
+}
+.sub{color:var(--txt3); font-size:12.5px}
+.legend{display:flex; gap:16px; margin-top:12px; flex-wrap:wrap; font-size:12px; color:var(--txt2)}
+/* 版权：压在页头第二行最右侧，和帧类型图例同一行，不抢标题与主题按钮 */
+.legend .cr{
+  margin-left:auto; color:var(--txt3); font-size:11.5px;
+  padding-left:14px; white-space:nowrap; letter-spacing:.2px;
+}
+.legend i{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; vertical-align:middle}
+/* ---------- tabs ---------- */
+nav.tabs{
+  display:flex; gap:2px; padding:0 20px; border-bottom:1px solid var(--line);
+  background:var(--bg2); overflow-x:auto; scrollbar-width:none;
+}
+nav.tabs::-webkit-scrollbar{display:none}
+.tab{
+  background:none; border:none; border-bottom:2px solid transparent; color:var(--txt3);
+  padding:11px 14px; cursor:pointer; font-size:13.5px; font-family:var(--sans);
+  white-space:nowrap; transition:.15s;
+}
+.tab:hover{color:var(--txt2)}
+.tab.active{color:var(--acc); border-bottom-color:var(--acc)}
+/* ---------- layout ---------- */
+main{padding:20px 22px 60px; max-width:1560px; margin:0 auto}
+.pane{display:none}
+.pane.active{display:block}
+.panel{background:var(--panel); border:1px solid var(--line); border-radius:10px}
+.panel-hd{
+  padding:10px 14px; border-bottom:1px solid var(--line); font-size:12.5px;
+  color:var(--txt2); display:flex; align-items:center; justify-content:space-between; gap:10px;
+  letter-spacing:.4px;
+}
+.panel-hd b{color:var(--txt); font-weight:600; font-size:13px}
+.panel-bd{padding:14px}
+/* ---------- decode ---------- */
+/* 第二列用 minmax(0,...) 而不是 1.55fr：fr 的隐式最小值是 auto，
+   长报文（超长 hex 串）的 min-content 会把整列顶宽，导致左侧面板变窄 */
+.decode-grid{display:grid; grid-template-columns:minmax(340px,0.82fr) minmax(0,1.55fr); gap:16px; align-items:start}
+.decode-grid > *{min-width:0}
+.decode-grid > .panel:first-child{position:sticky; top:16px}
+@media(max-width:1080px){
+  .decode-grid{grid-template-columns:1fr}
+  .decode-grid > .panel:first-child{position:static}
+}
+.mode-switch{display:flex; gap:6px; margin-bottom:10px}
+.mode-switch button{
+  flex:1; background:var(--panel2); border:1px solid var(--line); color:var(--txt3);
+  padding:7px 8px; border-radius:7px; cursor:pointer; font-size:12.5px; font-family:var(--sans); transition:.15s;
+}
+.mode-switch button:hover{border-color:var(--line2); color:var(--txt2)}
+.mode-switch button.on{background:rgba(var(--acc-rgb),0.1); border-color:rgba(var(--acc-rgb),0.4); color:var(--acc)}
+textarea{
+  width:100%; height:290px; resize:vertical; background:var(--bg2); color:var(--txt);
+  border:1px solid var(--line); border-radius:8px; padding:11px 12px;
+  font-family:var(--mono); font-size:13px; line-height:1.85; outline:none;
+  letter-spacing:.4px;
+}
+textarea:focus{border-color:rgba(var(--acc-rgb),0.33); box-shadow:0 0 0 3px rgba(var(--acc-rgb),0.08)}
+/* 帧解析输入框默认矮一半，仍可用右下角拖大 */
+#in-box{height:145px; min-height:70px}
+.btn-row{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap}
+button.act{
+  flex:1; min-width:88px; background:var(--panel2); border:1px solid var(--line2); color:var(--txt);
+  padding:8px 12px; border-radius:7px; cursor:pointer; font-size:13px; font-family:var(--sans); transition:.15s;
+}
+button.act:hover{background:var(--panel3); border-color:var(--line3)}
+button.act.primary{background:var(--acc); border-color:var(--acc); color:var(--btn-fg); font-weight:600}
+button.act.primary:hover{background:var(--acc-hi)}
+.hint{color:var(--txt3); font-size:11.5px; margin-top:9px; line-height:1.75}
+.hint code{font-family:var(--mono); background:var(--panel2); padding:1px 5px; border-radius:4px; color:var(--txt2)}
+/* message card */
+.msg{border:1px solid var(--line); border-radius:9px; background:var(--panel); margin-bottom:14px; overflow:hidden; min-width:0; max-width:100%}
+.msg.neg{border-color:rgba(var(--neg-rgb),0.33)}
+/* 例程执行失败：SID 是正响应（71），但例程自己回的状态字节 ≠ 0。
+   业务上等同失败，所以卡片按负响应同一套颜色标出来 */
+.msg.fail{border-color:rgba(var(--neg-rgb),0.33)}
+.msg.nrc-hit{border-color:var(--neg); box-shadow:0 0 0 3px rgba(var(--neg-rgb),0.2), 0 0 20px rgba(var(--neg-rgb),0.13)}
+/* 报文列表：左侧留出连线通道，请求框与响应框用一条折线连起来
+   通道要够宽：卡片左边缘外 16px 才开始走竖线，否则圆角贴着边框像长了个钩子 */
+.msg-list{position:relative; padding-left:56px}
+.pl-svg{position:absolute; left:0; top:0; overflow:visible; pointer-events:none}
+.pl-line{fill:none; stroke:var(--link); stroke-width:1.6; stroke-linecap:round}
+.pl-dot{stroke:none; fill:var(--link)}
+@media(max-width:760px){ .msg-list{padding-left:44px} }
+/* ---- 请求 / 响应成对关联 ----
+   只有两种颜色：请求蓝、响应绿。同一次问答靠颜色 + 同一个「对话 N」序号认出，不再多种配色。
+   这两支走 --req / --res，跟帧类型色（--sf/--ff）解耦，改帧类型配色不会牵动配对语义。 */
+.msg.pc-req{--pc:var(--req)}
+.msg.pc-res{--pc:var(--res)}
+.msg[data-pair]{border-left:3px solid var(--pc)}
+.msg.pair-hit{outline:2px solid var(--pc); outline-offset:2px; box-shadow:0 0 18px -4px var(--pc)}
+.pair-tag{
+  font-family:var(--mono); font-size:10.5px; line-height:1.7; padding:0 7px; border-radius:20px;
+  color:var(--pc); border:1px solid var(--pc); background:rgba(var(--hl-rgb),0.02); white-space:nowrap;
+}
+/* 有问答可配、但这一条请求没配上响应 */
+.pair-none{
+  font-family:var(--sans); font-size:10.5px; line-height:1.7; padding:0 7px; border-radius:20px;
+  color:var(--txt3); border:1px dotted rgba(var(--hl-rgb),0.18); white-space:nowrap; cursor:help;
+}
+/* 物理 / 响应 ID 没对上时的提示条 */
+.pairhint{border-color:rgba(var(--warn-rgb),0.33)}
+.phrow{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:6px 0; border-top:1px dashed rgba(var(--hl-rgb),0.07); font-size:12.5px;
+}
+.phrow:first-of-type{border-top:0}
+.phid{font-family:var(--mono); font-size:12px; color:var(--txt); white-space:nowrap}
+.phwhy{color:var(--txt3); font-size:11.5px; flex:1; min-width:180px}
+.phbtn{
+  cursor:pointer; font-family:var(--sans); font-size:11.5px; padding:3px 10px; border-radius:6px;
+  background:rgba(var(--warn-rgb),0.1); border:1px solid rgba(var(--warn-rgb),0.4); color:var(--warn); white-space:nowrap;
+  transition:background .15s, border-color .15s;
+}
+.phbtn:hover{background:rgba(var(--warn-rgb),0.19); border-color:var(--warn)}
+.phbtn:focus-visible{outline:2px solid rgba(var(--warn-rgb),0.53); outline-offset:2px}
+.phmore{color:var(--txt3); font-size:11.5px; padding-top:6px}
+/* 顶部状态栏：帧数统计 + NRC 快速跳转合并成一条，有 NRC 时整条边框变红 */
+.statbar{
+  position:sticky; top:10px; z-index:6;
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  margin-bottom:14px; padding:7px 12px; font-size:12.5px; color:var(--txt2);
+  background:var(--glass); border:1px solid var(--line2); border-radius:8px;
+  backdrop-filter:blur(8px); box-shadow:var(--shadow);
+  transition:border-color .15s, background .15s;
+}
+.statbar.has-nrc{border-color:rgba(var(--neg-rgb),0.47); background:var(--glass-nrc)}
+.statbar .sb-txt{flex:1 1 340px; min-width:0; line-height:1.9}
+.statbar .sb-txt b{color:var(--txt)}
+.statbar b.sb-hit{color:var(--acc)}
+.statbar b.sb-neg, .statbar .sb-nrc b{color:var(--neg)}
+.statbar b.sb-fail{color:var(--neg)}
+.statbar .sb-nrc{
+  white-space:nowrap; padding-left:11px; border-left:1px solid rgba(var(--hl-rgb),0.08);
+}
+.nrcbtn{
+  display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+  background:rgba(var(--neg-rgb),0.1); border:1px solid rgba(var(--neg-rgb),0.4); color:var(--neg-soft);
+  font-family:var(--sans); font-size:12px; padding:3px 11px; border-radius:6px;
+  transition:background .15s, border-color .15s;
+}
+.nrcbtn:hover{background:rgba(var(--neg-rgb),0.19); border-color:var(--neg)}
+.nrcbtn:focus-visible{outline:2px solid rgba(var(--neg-rgb),0.53); outline-offset:2px}
+.nrcbtn .k{
+  font-family:var(--mono); font-size:10.5px; color:var(--neg-soft-dim);
+  border:1px solid rgba(var(--neg-rgb),0.27); border-radius:3px; padding:0 4px; line-height:1.5;
+}
+.nrcpos{margin-left:auto; font-family:var(--mono); font-size:11.5px; color:var(--txt3)}
+/* 报文分段条：一次只铺一段，段首/段尾给按钮前后翻——
+   以前是直接砍掉第 400 条以后的内容，用户看不到「还有」，也就无从下手 */
+.pager{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:7px 12px; font-size:12.5px; color:var(--txt2);
+  background:var(--panel2); border:1px solid var(--line2); border-radius:8px;
+}
+.pager-top{margin-bottom:12px}
+.pager-bot{margin:14px 0}
+.pager-txt{
+  flex:1 1 auto; min-width:0; text-align:center;
+  font-family:var(--mono); font-size:11.5px; color:var(--txt3); line-height:1.9;
+}
+.pager-txt b{color:var(--acc); font-weight:600}
+.pager-btn{
+  display:inline-flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;
+  background:var(--panel2); border:1px solid var(--line2); color:var(--txt2);
+  font-family:var(--sans); font-size:12px; padding:3px 11px; border-radius:6px;
+  transition:color .15s, border-color .15s, background .15s;
+}
+.pager-btn:hover:not(:disabled){color:var(--txt); border-color:var(--acc); background:rgba(var(--acc-rgb),0.07)}
+.pager-btn:focus-visible{outline:2px solid rgba(var(--acc-rgb),0.53); outline-offset:2px}
+.pager-btn:disabled{opacity:.36; cursor:default}
+.pager-btn .ar{font-family:var(--mono); font-size:11px; color:var(--txt3)}
+/* 帧明细分批：铺满一批后给「加载更多」，长报文与孤立帧都不再被截断 */
+.fd-more{margin-top:10px; text-align:center}
+.fd-more-btn{
+  display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+  background:var(--panel2); border:1px dashed var(--line2); color:var(--txt2);
+  font-family:var(--sans); font-size:12px; padding:5px 14px; border-radius:999px;
+  transition:color .15s, border-color .15s, background .15s;
+}
+.fd-more-btn:hover{color:var(--acc); border-color:rgba(var(--acc-rgb),0.5); background:rgba(var(--acc-rgb),0.06)}
+.fd-more-btn:focus-visible{outline:2px solid rgba(var(--acc-rgb),0.53); outline-offset:2px}
+.fd-more-btn .k{font-family:var(--mono); font-size:11px; color:var(--txt3)}
+.msg-hd{
+  padding:9px 13px; background:var(--panel2); display:flex; align-items:center; gap:10px;
+  font-size:12.5px; flex-wrap:wrap; border-bottom:1px solid var(--line);
+}
+.msg-hd .t{font-weight:600; color:var(--txt)}
+.msg-hd .frames-ref{color:var(--txt3); font-family:var(--mono); font-size:11.5px}
+/* 相邻报文时间差：跟 t= 同一行、不抢眼，但间隔大的（等 P2*、超时重试）转成强调色，
+   时间戳回退（日志乱序）转橙，扫一眼就知道哪一段卡住了 */
+.msg-hd .dt{color:var(--txt2)}
+.msg-hd .dt.over{color:var(--acc)}
+.msg-hd .dt.back{color:var(--warn)}
+.msg-bd{padding:12px 13px; min-width:0}
+/* 每条报文自带的「帧明细」折叠开关 */
+.fd-wrap{margin-top:12px}
+.fd-toggle{
+  display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+  background:var(--panel2); border:1px solid var(--line2); color:var(--txt2);
+  font-family:var(--sans); font-size:12px; padding:4px 11px; border-radius:999px;
+  transition:color .15s, border-color .15s, background .15s;
+}
+.fd-toggle:hover{color:var(--txt); border-color:var(--acc); background:rgba(var(--acc-rgb),0.07)}
+.fd-toggle:focus-visible{outline:2px solid rgba(var(--acc-rgb),0.53); outline-offset:2px}
+.fd-toggle.open{color:var(--acc); border-color:rgba(var(--acc-rgb),0.4); background:rgba(var(--acc-rgb),0.08)}
+.fd-toggle .caret{
+  width:0; height:0; border-left:5px solid currentColor;
+  border-top:4px solid transparent; border-bottom:4px solid transparent;
+  transition:transform .18s; transform-origin:2px 50%;
+}
+.fd-toggle.open .caret{transform:rotate(90deg)}
+.fd-n{font-family:var(--mono); font-size:11px; color:var(--txt3)}
+.fd-toggle.open .fd-n{color:var(--acc)}
+.fd-panel{margin-top:11px; border-top:1px dashed var(--line); padding-top:12px}
+.fd-panel .frame-card{background:var(--bg2); border-color:var(--line)}
+.fd-panel .frame-card:last-child{margin-bottom:0}
+/* 长报文的十六进制串：优先在字节之间的空格处换行，单个字节对绝不拆开；
+   只有遇到超长的无空格串（如整段粘贴）才允许任意位置断行，避免撑宽卡片 */
+.hexline{
+  font-family:var(--mono); font-size:13px; letter-spacing:1px; color:var(--acc);
+  background:var(--bg2); border:1px solid var(--line); border-radius:6px;
+  padding:8px 10px; margin-bottom:11px;
+  white-space:pre-wrap; word-break:normal; overflow-wrap:anywhere; min-width:0;
+}
+.kv{display:grid; grid-template-columns:132px minmax(0,1fr); gap:4px 12px; font-size:13px}
+.kv .k{color:var(--txt3); font-size:12.5px; padding-top:1px}
+.kv .v{font-family:var(--mono); font-size:12.8px; word-break:break-word; overflow-wrap:anywhere; min-width:0}
+.kv .v.txt{font-family:var(--sans)}
+.pill{
+  display:inline-block; padding:1px 8px; border-radius:20px; font-size:11.5px;
+  font-family:var(--mono); border:1px solid; line-height:1.6;
+}
+/* tag-ok / tag-info 是通用药丸（「就是好的」「信息」「响应绿 / 请求蓝」），
+   走 --res / --req，跟帧类型色分开；帧类型的四种颜色另用 .b-sf/.b-ff/.b-cf/.b-fc */
+.tag-ok{color:var(--res); border-color:rgba(var(--res-rgb),0.33); background:rgba(var(--res-rgb),0.1)}
+.tag-bad{color:var(--neg); border-color:rgba(var(--neg-rgb),0.33); background:rgba(var(--neg-rgb),0.1)}
+.tag-warn{color:var(--warn); border-color:rgba(var(--warn-rgb),0.33); background:rgba(var(--warn-rgb),0.1)}
+.tag-info{color:var(--req); border-color:rgba(var(--req-rgb),0.33); background:rgba(var(--req-rgb),0.1)}
+.tag-dim{color:var(--txt3); border-color:var(--line2); background:rgba(var(--hl-rgb),0.03)}
+.nrc-box{
+  margin-top:11px; padding:10px 12px; border-radius:7px; background:rgba(var(--neg-rgb),0.06);
+  border-left:3px solid var(--neg); font-size:12.8px; line-height:1.8;
+}
+.nrc-box b{color:var(--neg-soft)}
+.nrc-box .lab{color:var(--txt3)}
+/* 例程执行失败：正响应 SID + 非 0 状态字节，用同一套红色语言但换个标题，别和真 NRC 混了 */
+.fail-box{
+  margin-top:11px; padding:10px 12px; border-radius:7px; background:rgba(var(--neg-rgb),0.06);
+  border-left:3px solid var(--neg); font-size:12.8px; line-height:1.8; color:var(--txt2);
+}
+.fail-box b{color:var(--neg-soft)}
+.fail-box .lab{color:var(--txt3)}
+/* frames */
+.frame-card{background:var(--panel); border:1px solid var(--line); border-radius:9px; margin-bottom:10px; overflow:hidden}
+.frame-hd{
+  display:flex; align-items:center; gap:9px; padding:8px 12px; background:var(--panel2);
+  font-size:12px; border-bottom:1px solid var(--line); flex-wrap:wrap;
+}
+.fidx{color:var(--txt3); font-family:var(--mono); font-size:11.5px}
+.badge{
+  font-family:var(--mono); font-size:11px; font-weight:600; padding:2px 9px;
+  border-radius:5px; letter-spacing:.5px;
+}
+.b-sf{background:rgba(var(--sf-rgb),0.13); color:var(--sf); border:1px solid rgba(var(--sf-rgb),0.33)}
+.b-ff{background:rgba(var(--ff-rgb),0.13); color:var(--ff); border:1px solid rgba(var(--ff-rgb),0.33)}
+.b-cf{background:rgba(var(--cf-rgb),0.13); color:var(--cf); border:1px solid rgba(var(--cf-rgb),0.33)}
+.b-fc{background:rgba(var(--fc-rgb),0.13); color:var(--fc); border:1px solid rgba(var(--fc-rgb),0.33)}
+.b-uk{background:rgba(var(--hl-rgb),0.06); color:var(--txt3); border:1px solid var(--line2)}
+.frame-body{padding:11px 12px}
+.bytes{display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px}
+.byte{
+  min-width:44px; border:1px solid var(--line2); border-radius:6px; overflow:hidden;
+  background:var(--panel2); text-align:center; font-family:var(--mono);
+}
+.byte .h{display:block; font-size:14px; padding:5px 4px 3px; letter-spacing:.6px}
+.byte .bit{display:block; font-size:9.5px; color:var(--txt3); padding:0 3px 4px; letter-spacing:.2px; border-top:1px solid rgba(var(--hl-rgb),0.04)}
+.r-pci{border-color:rgba(var(--pci-rgb),0.53); background:rgba(var(--pci-rgb),0.08)} .r-pci .h{color:var(--pci)}
+.r-len{border-color:rgba(var(--ff-rgb),0.53); background:rgba(var(--ff-rgb),0.08)} .r-len .h{color:var(--ff)}
+.r-sn{border-color:rgba(var(--cf-rgb),0.53); background:rgba(var(--cf-rgb),0.08)} .r-sn .h{color:var(--cf)}
+.r-fs{border-color:rgba(var(--fc-rgb),0.53); background:rgba(var(--fc-rgb),0.08)} .r-fs .h{color:var(--fc)}
+.r-bs{border-color:rgba(var(--fc-rgb),0.4); background:rgba(var(--fc-rgb),0.06)} .r-bs .h{color:var(--fc-soft)}
+.r-st{border-color:rgba(var(--fc-rgb),0.4); background:rgba(var(--fc-rgb),0.06)} .r-st .h{color:var(--fc-soft)}
+.r-data{border-color:var(--line2)} .r-data .h{color:var(--txt)}
+.r-pad{border-color:var(--line); border-style:dashed; opacity:.45} .r-pad .h{color:var(--txt3)}
+table.fd{width:100%; border-collapse:collapse; font-size:12.5px; table-layout:fixed}
+table.fd td{padding:3px 0; vertical-align:top}
+table.fd td:first-child{color:var(--txt3); width:150px; font-size:12px}
+table.fd td:last-child{font-family:var(--mono); font-size:12.5px; word-break:break-word}
+.warnline{color:var(--warn); font-size:12px; margin-top:6px}
+.infoline{color:var(--txt3); font-size:12px; margin-top:6px}
+.empty{color:var(--txt3); text-align:center; padding:40px 20px; font-size:13px; line-height:2}
+.empty svg{opacity:.35; margin-bottom:8px}
+/* ---------- file import ---------- */
+.dropzone{
+  border:1.5px dashed var(--line2); border-radius:9px; padding:26px 16px; text-align:center;
+  cursor:pointer; transition:.15s; background:var(--bg2);
+}
+.dropzone:hover, .dropzone.over{border-color:var(--acc); background:rgba(var(--acc-rgb),0.06)}
+.dropzone b{display:block; font-size:13.5px; color:var(--txt); margin-bottom:4px}
+.dropzone span{display:block; font-size:12.5px; color:var(--txt3)}
+.dropzone em{display:block; font-size:11.5px; color:var(--txt3); font-style:normal; margin-top:9px; font-family:var(--mono)}
+.file-info{margin-top:10px; font-size:12.2px; color:var(--txt2); line-height:1.95; font-family:var(--mono); word-break:break-word}
+.file-info b{color:var(--acc); font-weight:600}
+.file-info .bad{color:var(--neg)}
+.chip{
+  display:inline-block; font-family:var(--mono); font-size:11px; padding:1px 7px; margin:2px 4px 2px 0;
+  border-radius:5px; background:rgba(var(--hl-rgb),0.04); border:1px solid var(--line2); color:var(--txt2);
+}
+.chip.hit{background:rgba(var(--acc-rgb),0.1); border-color:rgba(var(--acc-rgb),0.33); color:var(--acc)}
+/* 日志中出现的 CAN ID（可点选填入三个 ID 输入框） */
+details.idpanel{border:1px solid var(--line); border-radius:9px; background:var(--panel); margin-bottom:14px; overflow:hidden}
+details.idpanel > summary{
+  padding:9px 13px; font-size:12.5px; color:var(--txt2); cursor:pointer; list-style:none;
+  display:flex; align-items:center; gap:8px; user-select:none;
+}
+details.idpanel > summary::-webkit-details-marker{display:none}
+details.idpanel > summary::before{
+  content:'\25B8'; color:var(--txt3); transition:transform .15s, color .15s; display:inline-block;
+}
+details.idpanel[open] > summary::before{transform:rotate(90deg); color:var(--acc)}
+details.idpanel > summary .cnt{margin-left:auto; font-family:var(--mono); font-size:11.5px; color:var(--txt3)}
+/* 每行最多两个 ID：固定 2 列，宽屏也不再自动加成 3 列 */
+.idlist{padding:2px 13px 6px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 30px}
+@media(max-width:820px){.idlist{grid-template-columns:minmax(0,1fr)}}
+.idrow{display:flex; align-items:center; gap:9px; padding:5px 0; border-top:1px dashed rgba(var(--hl-rgb),0.04); cursor:grab; user-select:none}
+.idrow:active{cursor:grabbing}
+.idlist > .idrow:first-child, .idrow:first-child{border-top:0}
+.idrow:hover{background:rgba(var(--hl-rgb),0.02)}
+.idrow:focus-visible{outline:2px solid rgba(var(--acc-rgb),0.53); outline-offset:2px; border-radius:6px}
+.idrow.dragging{opacity:.4}
+/* 左侧的六点拖拽手柄，暗示这一行可以拖 */
+.grip{
+  width:7px; height:13px; flex:0 0 auto; color:var(--txt3); opacity:.35;
+  background-image:radial-gradient(currentColor 1px, transparent 1.2px); background-size:4px 4.3px;
+}
+.idrow:hover .grip{opacity:.75; color:var(--acc)}
+.idname{font-family:var(--mono); font-size:12.5px; color:var(--txt); min-width:78px}
+.idcnt{font-family:var(--mono); font-size:11px; color:var(--txt3)}
+/* 该 ID 当前占用的槽位（只做标记，不可点） */
+.idslots{margin-left:auto; display:flex; gap:5px}
+.idslot{
+  font-size:10.5px; color:var(--acc); border:1px solid rgba(var(--acc-rgb),0.33); background:rgba(var(--acc-rgb),0.08);
+  border-radius:4px; padding:0 5px; line-height:1.55; white-space:nowrap;
+}
+.idrow.off .idname{color:var(--txt3)}
+.idrow.off .idcnt{opacity:.55}
+.idtag{
+  font-size:10px; color:var(--txt3); border:1px solid var(--line2);
+  border-radius:4px; padding:0 5px; line-height:1.5; white-space:nowrap;
+}
+/* 该请求 ID 的应答来自哪些响应 ID */
+.idpair{
+  font-family:var(--mono); font-size:10px; color:var(--txt2); border:1px solid var(--line2);
+  border-radius:4px; padding:0 5px; line-height:1.5; white-space:nowrap; background:rgba(var(--hl-rgb),0.02);
+  max-width:132px; overflow:hidden; text-overflow:ellipsis;
+}
+/* ---------- id config ---------- */
+details.idcfg{margin-top:12px; border:1px solid var(--line); border-radius:8px; background:var(--bg2)}
+details.idcfg > summary{padding:8px 12px; font-size:12.5px; color:var(--txt2); cursor:pointer; list-style:none; user-select:none}
+details.idcfg > summary::-webkit-details-marker{display:none}
+details.idcfg > summary::before{content:'\25B8'; display:inline-block; margin-right:7px; color:var(--txt3); transition:.15s}
+details.idcfg[open] > summary::before{transform:rotate(90deg); color:var(--acc)}
+.idgrid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; padding:2px 12px 10px}
+.idgrid label{display:block; font-size:11px; color:var(--txt3); margin-bottom:3px}
+.idgrid input{
+  width:100%; background:var(--panel); border:1px solid var(--line); border-radius:6px;
+  color:var(--txt); padding:6px 8px; font-family:var(--mono); font-size:12.5px; outline:none;
+  text-transform:uppercase;
+}
+.idgrid input:focus{border-color:rgba(var(--acc-rgb),0.33); box-shadow:0 0 0 2px rgba(var(--acc-rgb),0.08)}
+/* 拖拽投放目标高亮：ID 拖到输入框上时整格亮起 */
+.idgrid > div{position:relative; border-radius:8px; transition:background .12s}
+.idgrid > div.drop-on{background:rgba(var(--acc-rgb),0.07)}
+.idgrid > div.drop-on::after{
+  content:'松手填入'; position:absolute; right:6px; top:-2px; font-size:10px; color:var(--acc);
+  background:var(--panel2); border:1px solid rgba(var(--acc-rgb),0.33); border-radius:4px; padding:0 4px; line-height:1.5;
+}
+.idgrid input.drop-on{border-color:var(--acc); box-shadow:0 0 0 3px rgba(var(--acc-rgb),0.15); background:rgba(var(--acc-rgb),0.05)}
+.idnote{padding:0 12px 11px; font-size:11.2px; color:var(--txt3); line-height:1.75}
+.idnote code{font-family:var(--mono); color:var(--txt2)}
+.switchrow{display:flex; align-items:center; gap:7px; padding:0 12px 11px; font-size:12px; color:var(--txt2); cursor:pointer}
+.switchrow input{accent-color:var(--acc); cursor:pointer}
+/* ---------- tables (query tabs) ---------- */
+.toolbar{display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center}
+.search{
+  flex:1; min-width:220px; background:var(--panel); border:1px solid var(--line); color:var(--txt);
+  padding:9px 13px; border-radius:8px; font-size:13.5px; font-family:var(--sans); outline:none;
+}
+.search:focus{border-color:rgba(var(--acc-rgb),0.33); box-shadow:0 0 0 3px rgba(var(--acc-rgb),0.08)}
+.count{color:var(--txt3); font-size:12px; font-family:var(--mono)}
+.tbl-wrap{background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden}
+table.data{width:100%; border-collapse:collapse; font-size:13px}
+table.data thead th{
+  text-align:left; padding:10px 13px; color:var(--txt3); font-weight:500; font-size:11.8px;
+  letter-spacing:.5px; border-bottom:1px solid var(--line); background:var(--panel2);
+  position:sticky; top:0; z-index:2; white-space:nowrap;
+}
+table.data tbody td{padding:9px 13px; border-bottom:1px solid rgba(var(--hl-rgb),0.03); vertical-align:top}
+table.data tbody tr:hover{background:rgba(var(--hl-rgb),0.02)}
+table.data tbody tr:last-child td{border-bottom:none}
+td.code{font-family:var(--mono); color:var(--acc); white-space:nowrap; font-size:13px; font-weight:600}
+td.mono{font-family:var(--mono); font-size:12.5px}
+td.name{font-family:var(--mono); font-size:12px; color:var(--txt2)}
+td.cn{color:var(--txt); white-space:nowrap}
+td.why{color:var(--txt2); font-size:12.3px; line-height:1.7}
+.srow{cursor:pointer}
+.srow .expand{color:var(--txt3); font-size:11px; transition:.15s; display:inline-block}
+.srow.open .expand{transform:rotate(90deg); color:var(--acc)}
+/* 服务查询 / NRC 详情：所有行等高。说明、名称再长也只占一行，超出用省略号（悬停看全文），
+   这样列表永远是整齐的等距行，不会因为某条说明长就顶成两行高。 */
+#pane-services table.data, #pane-nrc table.data{table-layout:fixed}
+#pane-services .tbl-wrap, #pane-nrc .tbl-wrap{overflow-x:auto}
+#pane-services tr.srow, #pane-nrc tr{height:38px}
+#pane-services tr.srow > td, #pane-nrc tr > td{
+  height:38px; padding-top:0; padding-bottom:0; vertical-align:middle;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+/* 窄屏下不再压窄各列，改为横向滚动，保证「服务名 / 正响应 / 说明」都还能读 */
+@media(max-width:1100px){
+  #pane-services table.data{min-width:1010px}
+  #pane-nrc table.data{min-width:900px}
+}
+tr.detail-row{background:var(--sunken)}
+tr.detail-row > td{padding:0 !important; border-bottom:1px solid var(--line) !important}
+.detail-inner{padding:12px 14px 14px; display:grid; grid-template-columns:1.1fr 1fr; gap:16px}
+@media(max-width:900px){.detail-inner{grid-template-columns:1fr}}
+.detail-inner h4{font-size:11.5px; color:var(--txt3); letter-spacing:.6px; margin-bottom:6px; font-weight:500}
+.detail-inner p{font-size:13px; color:var(--txt2); line-height:1.7}
+.mini{width:100%; border-collapse:collapse; font-size:12.5px}
+.mini td{padding:3px 6px; border-bottom:1px solid rgba(var(--hl-rgb),0.03); vertical-align:top}
+.mini td:first-child{font-family:var(--mono); color:var(--req); white-space:nowrap; width:54px; padding-right:10px}
+.mini td:nth-child(2){font-family:var(--mono); color:var(--txt2); font-size:11.5px; white-space:nowrap; padding-right:16px}
+.mini td:last-child{font-family:var(--sans); color:var(--txt); width:100%}
+.fmt{width:100%; border-collapse:collapse; font-size:12.5px}
+.fmt td{padding:3px 0; border-bottom:1px solid rgba(var(--hl-rgb),0.03); vertical-align:top}
+.fmt td:first-child{font-family:var(--mono); color:var(--txt3); width:54px; white-space:nowrap; font-size:11px; letter-spacing:.5px}
+.fmt td:last-child{font-family:var(--mono); color:var(--txt2); font-size:12px; word-break:break-word}
+/* dtc */
+.dtc-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+@media(max-width:900px){.dtc-grid{grid-template-columns:1fr}}
+.field{display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap}
+.field label{color:var(--txt3); font-size:12.5px; width:96px}
+.inp{
+  background:var(--bg2); border:1px solid var(--line); border-radius:7px; color:var(--txt);
+  padding:8px 11px; font-family:var(--mono); font-size:14px; outline:none; letter-spacing:1px;
+  width:170px; text-transform:uppercase;
+}
+.inp:focus{border-color:rgba(var(--acc-rgb),0.33); box-shadow:0 0 0 3px rgba(var(--acc-rgb),0.08)}
+.big-out{
+  font-family:var(--mono); font-size:26px; color:var(--acc); letter-spacing:2px;
+  padding:10px 0 6px; font-weight:600;
+}
+.bitgrid{display:grid; grid-template-columns:repeat(8,1fr); gap:5px; margin-top:8px}
+.bitcell{border:1px solid var(--line2); border-radius:6px; text-align:center; padding:5px 2px; background:var(--panel2)}
+.bitcell .n{font-size:9.5px; color:var(--txt3); font-family:var(--mono)}
+.bitcell .v{font-family:var(--mono); font-size:14px}
+.bitcell.on{border-color:rgba(var(--res-rgb),0.53); background:rgba(var(--res-rgb),0.08)} .bitcell.on .v{color:var(--res)}
+.bitcell.off .v{color:var(--txt3)}
+/* ---------- ref：帧结构示意图 ---------- */
+.ref-bar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px}
+.seg{
+  display:flex; gap:2px; padding:2px; border-radius:8px;
+  border:1px solid var(--line2); background:rgba(var(--hl-rgb),0.04);
+}
+.seg button{
+  border:1px solid transparent; background:transparent; color:var(--txt3);
+  font-family:var(--sans); font-size:12px; line-height:1.5; padding:4px 10px; border-radius:6px;
+  cursor:pointer; white-space:nowrap; transition:color .15s, background .15s, border-color .15s;
+}
+.seg button:hover{color:var(--txt); background:rgba(var(--hl-rgb),0.07)}
+.seg button.on{color:var(--acc); background:rgba(var(--acc-rgb),0.12); border-color:rgba(var(--acc-rgb),0.4); font-weight:600}
+.seg button:focus-visible{outline:2px solid rgba(var(--acc-rgb),0.53); outline-offset:1px}
+/* 长度格式只对 CAN FD 的单帧 / 首帧有意义，其余情况整组隐藏 */
+#ref-fmt[hidden]{display:none}
+#ref-fmt{border-color:rgba(var(--warn-rgb),0.38); background:rgba(var(--warn-rgb),0.06)}
+#ref-fmt button.on{color:var(--warn); background:rgba(var(--warn-rgb),0.14); border-color:rgba(var(--warn-rgb),0.45)}
+.ref-ex{margin-left:auto; font-family:var(--mono); font-size:11.5px; color:var(--txt3); letter-spacing:.5px}
+
+/* 帧示意图：一格一个字节，点哪格看哪格 */
+.frame-diagram{display:flex; flex-wrap:wrap; gap:6px}
+.bc{
+  flex:1 1 66px; min-width:56px; max-width:210px; position:relative; overflow:hidden;
+  display:flex; flex-direction:column; gap:1px; padding:6px 6px 5px;
+  border:1px solid var(--line2); border-radius:8px; background:var(--panel2);
+  cursor:pointer; text-align:center; font-family:var(--sans);
+  transition:border-color .15s, background .15s, box-shadow .15s;
+}
+.bc:hover{border-color:var(--line3)}
+.bc-n{font-family:var(--mono); font-size:9.5px; color:var(--txt3); letter-spacing:.2px; white-space:nowrap}
+.bc-v{font-family:var(--mono); font-size:16px; font-weight:600; line-height:1.3; color:var(--txt)}
+.bc-t{font-size:10px; color:var(--txt3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.bc.wide{flex:2.4 1 118px; max-width:none}
+.bc.on{border-color:var(--acc); box-shadow:0 0 0 2px rgba(var(--acc-rgb),0.55), 0 0 12px -2px rgba(var(--acc-rgb),0.5); z-index:1}
+.bc.same{background:rgba(var(--acc-rgb),0.06)}
+/* 字节角色配色，与「帧解析」里的字节块保持同一套颜色 */
+.bc.rl-pci{border-color:rgba(var(--pci-rgb),0.5); background:rgba(var(--pci-rgb),0.08)}
+.bc.rl-pci .bc-v{color:var(--pci)}
+.bc.rl-len{border-color:rgba(var(--ff-rgb),0.5); background:rgba(var(--ff-rgb),0.08)}
+.bc.rl-len .bc-v{color:var(--ff)}
+.bc.rl-sn{border-color:rgba(var(--cf-rgb),0.5); background:rgba(var(--cf-rgb),0.08)}
+.bc.rl-sn .bc-v{color:var(--cf)}
+.bc.rl-fc{border-color:rgba(var(--fc-rgb),0.5); background:rgba(var(--fc-rgb),0.08)}
+.bc.rl-fc .bc-v{color:var(--fc)}
+.bc.rl-pad{border-style:dashed; opacity:.6}
+.bc.rl-pad .bc-v{color:var(--txt3); font-size:13px}
+.bc.rl-tail{
+  border-style:dashed; border-color:rgba(var(--acc-rgb),0.4);
+  background:repeating-linear-gradient(135deg, transparent 0 7px, rgba(var(--acc-rgb),0.035) 7px 14px);
+}
+.bc.rl-tail .bc-v{color:var(--txt3); font-size:13px}
+.ref-cap{margin-top:10px; font-size:12px; color:var(--txt3); line-height:1.8}
+.ref-cap b{color:var(--txt2); font-weight:500}
+
+/* 选中字节的详情 */
+.byte-detail{
+  display:grid; grid-template-columns:minmax(250px,0.78fr) minmax(0,1.22fr); gap:18px;
+  margin-top:14px; padding-top:14px; border-top:1px dashed var(--line);
+}
+@media(max-width:920px){.byte-detail{grid-template-columns:1fr; gap:14px}}
+.byte-detail > *{min-width:0}
+.bd-head{display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; margin-bottom:8px}
+.bd-byte{
+  font-family:var(--mono); font-size:10.5px; color:var(--txt3);
+  border:1px solid var(--line2); border-radius:4px; padding:0 5px; line-height:1.6; white-space:nowrap;
+}
+.bd-val{font-family:var(--mono); font-size:22px; font-weight:600; color:var(--acc); letter-spacing:1px}
+.bd-role{font-size:11px; border:1px solid currentColor; border-radius:20px; padding:0 7px; line-height:1.6; font-family:var(--mono)}
+.bd-role.pci{color:var(--pci)} .bd-role.len{color:var(--ff)}
+.bd-role.sn{color:var(--cf)} .bd-role.fc{color:var(--fc)}
+.bd-role.data{color:var(--txt2)} .bd-role.pad{color:var(--txt3)}
+.bd-role.tail{color:var(--acc)}
+.bd-title{font-size:13.5px; color:var(--txt); font-weight:600; margin-bottom:10px; line-height:1.6}
+.bd-title .bd-sub{font-size:11.5px; color:var(--txt3); font-weight:400; margin-left:8px; font-family:var(--mono)}
+.bits8{display:grid; grid-template-columns:repeat(8,1fr); gap:4px}
+.bitc{border:1px solid var(--line2); border-radius:5px; background:var(--panel2); text-align:center; padding:3px 0}
+.bitc i{display:block; font-style:normal; font-family:var(--mono); font-size:9px; color:var(--txt3)}
+.bitc b{display:block; font-family:var(--mono); font-size:14px; color:var(--txt); line-height:1.4}
+.bitc.hi b{color:var(--acc)}
+.bitc.lo b{color:var(--cf)}
+.nibrow{display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin-top:6px}
+.nibrow span{
+  font-size:10.5px; color:var(--txt3); text-align:center; padding:2px 4px;
+  border-top:2px solid var(--line2); line-height:1.5;
+}
+.nibrow span:first-child{border-top-color:rgba(var(--acc-rgb),0.53)}
+.nibrow span:last-child{border-top-color:rgba(var(--cf-rgb),0.53)}
+.bd-sec + .bd-sec{margin-top:12px}
+.bd-sec h4{font-size:11.5px; color:var(--txt3); letter-spacing:.6px; margin-bottom:5px; font-weight:500}
+.bd-sec p{font-size:12.8px; color:var(--txt2); line-height:1.8}
+table.bd-opts{width:100%; border-collapse:collapse; font-size:12.3px; table-layout:fixed}
+table.bd-opts td{padding:5px 8px; border-bottom:1px solid rgba(var(--hl-rgb),0.04); vertical-align:top}
+table.bd-opts td:first-child{
+  font-family:var(--mono); color:var(--acc); width:112px; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis;
+}
+table.bd-opts td:nth-child(2){color:var(--txt); width:190px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+table.bd-opts td:last-child{color:var(--txt2); line-height:1.7}
+table.bd-opts tr:last-child td{border-bottom:0}
+.kvlist{font-size:12.8px}
+.kvlist .row{display:flex; gap:10px; padding:5px 0; border-bottom:1px solid rgba(var(--hl-rgb),0.03)}
+.kvlist .row:last-child{border-bottom:none}
+.kvlist .row .c{font-family:var(--mono); color:var(--acc); min-width:74px; flex-shrink:0; font-size:12.5px}
+.kvlist .row .d{color:var(--txt2); flex:1}
+.note{color:var(--txt3); font-size:11.8px; line-height:1.8; margin-top:8px; padding-top:8px; border-top:1px dashed var(--line)}
+.note b{color:var(--warn); font-weight:500}
+</style>
+<script>
+/* 主题在首屏绘制前就落地，避免从暗到亮闪一下 */
+(function(){
+  var pref = 'auto';
+  try { pref = localStorage.getItem('uds-theme') || 'auto'; } catch(e){}
+  var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  var dark = pref === 'dark' || (pref !== 'light' && !!(mq && mq.matches));
+  var de = document.documentElement;
+  de.setAttribute('data-theme', dark ? 'dark' : 'light');
+  de.setAttribute('data-theme-pref', pref);
+})();
+</script>
+</head>
+<body>
+
+<header>
+  <div class="hd-top">
+    <h1>UDS 诊断查询<span>工具箱</span><span class="ver">V1.0.0</span></h1>
+    <span class="sub">ISO 14229-1 · ISO 15765-2 (ISO-TP) 离线解析</span>
+    <div class="theme-sw" role="group" aria-label="外观主题">
+      <button type="button" data-th="auto" title="跟随系统外观" aria-pressed="true">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2.5a5.5 5.5 0 0 0 0 11z" fill="currentColor"/></svg>
+        <span>跟随系统</span>
+      </button>
+      <button type="button" data-th="light" title="明亮主题" aria-pressed="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="3.1"/><path d="M8 1.1v1.7M8 13.2v1.7M1.1 8h1.7M13.2 8h1.7M3.15 3.15l1.2 1.2M11.65 11.65l1.2 1.2M12.85 3.15l-1.2 1.2M4.35 11.65l-1.2 1.2"/></svg>
+        <span>明亮</span>
+      </button>
+      <button type="button" data-th="dark" title="黑暗主题" aria-pressed="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.3 9.7A5.6 5.6 0 0 1 6.3 2.7a5.6 5.6 0 1 0 7 7z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        <span>黑暗</span>
+      </button>
+    </div>
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--sf)"></i>单帧 SF</span>
+    <span><i style="background:var(--ff)"></i>首帧 FF</span>
+    <span><i style="background:var(--cf)"></i>连续帧 CF</span>
+    <span><i style="background:var(--fc)"></i>流控帧 FC</span>
+    <span><i style="background:var(--pci)"></i>PCI 字段</span>
+    <span class="cr">© 版权归冯宗兴所有</span>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="tab active" data-pane="decode">帧解析</button>
+  <button class="tab" data-pane="services">服务查询</button>
+  <button class="tab" data-pane="nrc">NRC 详情</button>
+  <button class="tab" data-pane="did">DID 查询</button>
+  <button class="tab" data-pane="routine">例程 31</button>
+  <button class="tab" data-pane="dtc">DTC 解码</button>
+  <button class="tab" data-pane="ref">参数速查</button>
+</nav>
+
+<main>
+  <!-- ================= DECODE ================= -->
+  <section class="pane active" id="pane-decode">
+    <div class="decode-grid">
+      <div class="panel">
+        <div class="panel-hd"><b>输入</b><span class="count" id="in-stat"></span></div>
+        <div class="panel-bd">
+          <div class="mode-switch" id="mode-switch">
+            <button class="on" data-mode="file">文件导入</button>
+            <button data-mode="isotp">ISO-TP 帧流</button>
+            <button data-mode="raw">原始报文</button>
+          </div>
+          <textarea id="in-box" spellcheck="false" style="display:none" placeholder="每行一帧，十六进制字节，空格/连字符可省略&#10;例如：&#10;02 10 03&#10;06 50 03 00 32 01 F4"></textarea>
+          <div id="file-zone">
+            <input type="file" id="file-input" accept=".asc,.blf,.trc,.txt,.log" hidden>
+            <div class="dropzone" id="dropzone">
+              <b>拖拽日志文件到此处</b>
+              <span>或点击选择文件</span>
+              <em>.asc &nbsp; .blf &nbsp; .trc &nbsp;（含 CAN FD）</em>
+            </div>
+            <div class="file-info" id="file-info"></div>
+          </div>
+          <div class="btn-row">
+            <button class="act primary" id="btn-parse">解析 (Ctrl+Enter)</button>
+            <button class="act" id="btn-demo">载入示例</button>
+            <button class="act" id="btn-clear">清空</button>
+          </div>
+          <div class="hint" id="input-hint" style="display:none">
+            支持 <code>02 10 03</code> / <code>021003</code> / <code>7E0#021003</code> / <code>0x02,0x10,0x03</code><br>
+            <code>#</code> 或 <code>//</code> 之后视为注释；自动识别 SF / FF / CF / FC 并跨帧重组。<br>
+            另支持粘贴 CANape/CANoe 风格的 <code>7E8 8 02 10 03 ...</code>（自动跳过 ID 与 DLC）。<br>
+            解析后若存在负响应，结果顶部会出现 <b style="color:var(--neg)">跳到下一条</b> 按钮（快捷键 <code>Alt+N</code>）。
+          </div>
+
+          <details class="idcfg" open>
+            <summary>CAN ID 配置（物理 / 功能 / 响应）</summary>
+            <div class="idgrid">
+              <div><label>物理 ID</label><input id="id-phys" value="7E0" spellcheck="false"></div>
+              <div><label>功能 ID</label><input id="id-func" value="7DF" spellcheck="false"></div>
+              <div><label>响应 ID</label><input id="id-resp" value="7E8" spellcheck="false"></div>
+            </div>
+            <label class="switchrow"><input type="checkbox" id="id-enable" checked> 只保留这些 ID 上的帧（文件导入强烈建议开启）</label>
+            <div class="idnote">
+              物理寻址请求 <code>7E0</code>、功能寻址请求 <code>7DF</code>、ECU 响应 <code>7E8</code> 为默认值；
+              三个 ID 各自独立，改哪个只影响哪个。29 位 ID 直接填 <code>18DAF110</code>。
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div id="out-area">
+        <div class="panel">
+          <div class="panel-bd">
+            <div class="empty">
+              <div style="font-family:var(--mono); font-size:34px; color:var(--line2)">&#60; &#62;</div>
+              把 CAN 日志文件拖到左侧，或点击选择文件<br>
+              <span style="font-size:12px">支持 .asc / .blf / .trc（含 CAN FD）；也可切到「ISO-TP 帧流」粘贴报文，或点「载入示例」看完整 VIN 读取流程</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SERVICES ================= -->
+  <section class="pane" id="pane-services">
+    <div class="toolbar">
+      <input class="search" id="svc-search" placeholder="搜索 SID / 服务名 / 中文，如 22、ReadDataByIdentifier、读取数据">
+      <span class="count" id="svc-count"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table class="data">
+        <thead><tr>
+          <th style="width:62px">SID</th><th style="width:275px">服务名</th><th style="width:140px">中文</th>
+          <th style="width:270px">正响应</th><th>说明</th>
+        </tr></thead>
+        <tbody id="svc-body"></tbody>
+      </table>
+    </div>
+    <div class="note" style="border:none; padding-left:2px">
+      SID 分区：<code style="font-family:var(--mono); color:var(--acc)">0x10–0x3E</code> 请求服务 ·
+      <code style="font-family:var(--mono); color:var(--res)">0x40–0x7E</code> 正响应（SID+0x40） ·
+      <code style="font-family:var(--mono); color:var(--neg)">0x7F</code> 负响应 ·
+      <code style="font-family:var(--mono); color:var(--cf)">0x80–0xBE</code> 带抑制位的请求子功能
+    </div>
+  </section>
+
+  <!-- ================= NRC ================= -->
+  <section class="pane" id="pane-nrc">
+    <div class="toolbar">
+      <input class="search" id="nrc-search" placeholder="搜索 NRC 码 / 英文名 / 中文，如 78、pending、条件不满足">
+      <span class="count" id="nrc-count"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table class="data">
+        <thead><tr>
+          <!-- NRC 码列用固定 px（要装下 0xXX 药丸），其余按百分比缩放：
+               窄屏时五列一起按比例收窄，而不是让最后一列吃光收缩量 -->
+          <th style="width:84px">NRC</th><th style="width:22%">名称</th><th style="width:11%">中文</th>
+          <th style="width:27%">含义 / 常见触发</th><th>排查方向</th>
+        </tr></thead>
+        <tbody id="nrc-body"></tbody>
+      </table>
+    </div>
+    <div class="note" style="border:none; padding-left:2px">
+      负响应格式固定为 <code style="font-family:var(--mono); color:var(--neg)">7F &lt;原SID&gt; &lt;NRC&gt;</code>。最常见三个：<b>0x7F 会话不支持</b>（先切扩展会话）、<b>0x33 安全未解锁</b>（先 27 服务）、<b>0x78 响应挂起</b>（正常，需等最终响应）。
+    </div>
+  </section>
+
+  <!-- ================= DID ================= -->
+  <section class="pane" id="pane-did">
+    <div class="toolbar">
+      <input class="search" id="did-search" placeholder="搜索 DID / 名称，如 F190、VIN、软件版本">
+      <span class="count" id="did-count"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table class="data">
+        <thead><tr>
+          <th style="width:100px">DID</th><th style="width:330px">名称</th><th style="width:180px">中文</th><th>典型内容 / 备注</th>
+        </tr></thead>
+        <tbody id="did-body"></tbody>
+      </table>
+    </div>
+    <div class="note" style="border:none; padding-left:2px">
+      <code style="font-family:var(--mono); color:var(--acc)">0xFF00</code> 不是 DID，是<strong>例程号（RoutineIdentifier）</strong>——
+      擦除内存走的是 <code style="font-family:var(--mono)">31 01 FF 00</code>，查「例程 31」页。
+      DID 只用于 22 读 / 2E 写；<code style="font-family:var(--mono)">0x0100–0xA5FF</code> 这一段全是整车厂自定义，编号必须查 CDD / 诊断规范。
+    </div>
+  </section>
+
+  <!-- ================= ROUTINE ================= -->
+  <section class="pane" id="pane-routine">
+    <div class="toolbar">
+      <input class="search" id="rtn-search" placeholder="搜索 RoutineId / 名称 / 中文，如 FF00、erase、擦除、前置条件">
+      <span class="count" id="rtn-count"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table class="data">
+        <thead><tr>
+          <th style="width:104px">RoutineId</th><th style="width:300px">名称</th><th style="width:150px">中文</th>
+          <th style="width:230px">请求 → 正响应</th><th>状态字节 / 说明</th>
+        </tr></thead>
+        <tbody id="rtn-body"></tbody>
+      </table>
+    </div>
+    <div class="note" style="border:none; padding-left:2px">
+      子功能：<code style="font-family:var(--mono)">01</code> 启动例程 · <code style="font-family:var(--mono)">02</code> 停止例程 ·
+      <code style="font-family:var(--mono)">03</code> 查询例程结果，加 <code style="font-family:var(--mono)">0x80</code> 抑制正响应。
+      正响应最后一个字节是 <strong>routineStatusRecord</strong>：<b>0x00 成功</b>，<b>非 0 失败</b>——
+      所以 <code style="font-family:var(--mono)">71 01 FF 00 01</code> 虽然 SID 是正响应，业务上就是「擦除失败」，帧解析里会按失败标红。
+    </div>
+  </section>
+
+  <!-- ================= DTC ================= -->
+  <section class="pane" id="pane-dtc">
+    <div class="dtc-grid">
+      <div class="panel">
+        <div class="panel-hd"><b>DTC ↔ 十六进制 双向转换</b><span class="count">ISO 14229-1 · 3 字节</span></div>
+        <div class="panel-bd">
+          <div class="field">
+            <label>十六进制</label>
+            <input class="inp" id="dtc-hex" placeholder="01 33" maxlength="11">
+            <span class="count">b0 b1 [b2 状态]</span>
+          </div>
+          <div class="field">
+            <label>DTC 编号</label>
+            <input class="inp" id="dtc-str" placeholder="P0133" maxlength="6" style="width:130px">
+          </div>
+          <div class="big-out" id="dtc-result">—</div>
+          <div class="kv" id="dtc-detail"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-hd"><b>状态字节 bit 定义</b><span class="count" id="dtc-status-raw">0x00</span></div>
+        <div class="panel-bd">
+          <div class="bitgrid" id="dtc-bits"></div>
+          <div class="kvlist" id="dtc-bit-list" style="margin-top:12px"></div>
+          <div class="note" style="border:none; padding-top:4px">
+            b0 高 2 位决定系统：<code style="font-family:var(--mono)">00=P 动力</code> ·
+            <code style="font-family:var(--mono)">01=C 底盘</code> ·
+            <code style="font-family:var(--mono)">10=B 车身</code> ·
+            <code style="font-family:var(--mono)">11=U 网络</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= REF ================= -->
+  <section class="pane" id="pane-ref">
+    <div class="panel">
+      <div class="panel-hd">
+        <b>ISO-TP 帧结构 · 按字节查看</b>
+        <span class="count">点任意字节看详情 · CAN FD 的单帧 / 首帧各有短、长两种长度格式</span>
+      </div>
+      <div class="panel-bd">
+        <div class="ref-bar">
+          <div class="seg" id="ref-bus" role="group" aria-label="总线类型">
+            <button type="button" data-bus="can" class="on">经典 CAN</button>
+            <button type="button" data-bus="fd">CAN FD</button>
+          </div>
+          <div class="seg" id="ref-type" role="group" aria-label="帧类型">
+            <button type="button" data-ft="sf" class="on">单帧 SF</button>
+            <button type="button" data-ft="ff">首帧 FF</button>
+            <button type="button" data-ft="cf">连续帧 CF</button>
+            <button type="button" data-ft="fc">流控帧 FC</button>
+          </div>
+          <div class="seg" id="ref-fmt" role="group" aria-label="长度格式"
+               title="单帧：8 字节帧用短格式（SF_DL 1–7），CAN_DL &gt; 8 一律转义（SF_DL 8–62）；首帧：≤ 4095 用 12 位长度，&gt; 4095 用 32 位长度">
+            <button type="button" data-fmt="short" class="on" data-tip="长度落在 PCI 字节里，数据紧跟在 PCI 之后">短格式</button>
+            <button type="button" data-fmt="long" data-tip="PCI 里写 0 作转义，真实长度放进 PCI 之后的字节">长格式 · 转义</button>
+          </div>
+          <span class="ref-ex" id="ref-ex"></span>
+        </div>
+
+        <div class="frame-diagram" id="ref-diagram"></div>
+        <div class="ref-cap" id="ref-cap"></div>
+
+        <div class="byte-detail" id="ref-detail"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* =========================================================
+   数据层
+   ========================================================= */
+
+const NRC_LIST = [
+  {c:0x10, name:'generalReject', cn:'通用拒绝', why:'服务器拒绝了请求，但具体原因不属于其他 NRC', tip:'检查请求参数格式；多见于自研 ECU 的兜底分支'},
+  {c:0x11, name:'serviceNotSupported', cn:'服务不支持', why:'该 SID 未实现（不是会话问题，是压根没有）', tip:'查 CDD 里是否有该服务；确认目标 ECU 地址没搞错'},
+  {c:0x12, name:'subFunctionNotSupported', cn:'子功能不支持', why:'SID 支持，但该子功能/参数无效', tip:'如 31 03 不支持、19 0A 未实现；核对 CDD 的 sub-function 表'},
+  {c:0x13, name:'incorrectMessageLengthOrInvalidFormat', cn:'长度或格式错误', why:'报文长度与定义不符，例如 22 少给 DID、2E 数据长度不对', tip:'对照 CDD 的请求长度；注意多帧重组是否完整'},
+  {c:0x14, name:'responseTooLong', cn:'响应过长', why:'ECU 想回的响应超过其缓冲区或传输上限', tip:'改用 2F/31 分段读，或检查 34 服务的 maxNumberOfBlockLength'},
+  {c:0x21, name:'busyRepeatRequest', cn:'忙，请重发', why:'ECU 暂时处理不过来，需要重发同一请求', tip:'延时后重发；连续出现说明 ECU 负载过高'},
+  {c:0x22, name:'conditionsNotCorrect', cn:'条件不满足', why:'当前车辆/ECU 状态不允许该操作（车速、点火、发动机状态等）', tip:'查 precondition：车速=0、KL15 ON、发动机熄火、档位 P 等'},
+  {c:0x24, name:'requestSequenceError', cn:'请求顺序错误', why:'前置步骤没做，例如未 34 就发 36、未擦除就写', tip:'检查刷写状态机顺序；36 的 blockSequenceCounter 是否连续'},
+  {c:0x25, name:'noResponseFromSubnetComponent', cn:'子网部件无响应', why:'网关转发的目标 ECU 不在线', tip:'检查目标 ECU 上电/唤醒、CAN 总线终端电阻'},
+  {c:0x26, name:'failurePreventsExecutionOfRequestedAction', cn:'故障阻止执行', why:'存在阻止该动作的 DTC 或内部故障', tip:'先清/读 DTC，确认无安全相关故障'},
+  {c:0x31, name:'requestOutOfRange', cn:'请求超出范围', why:'参数值越界：DID 不存在、RoutineId 不支持、地址越界、数据超范围', tip:'最高频 NRC。逐一核对 DID / 子功能 / 地址长度格式；2E 时检查取值范围'},
+  {c:0x33, name:'securityAccessDenied', cn:'安全访问被拒', why:'未解锁或密钥校验失败（部分厂商把 key 错也归到 33）', tip:'先 27 01 取种子；确认会话为扩展/编程会话；注意 0x35/0x36 的区别'},
+  {c:0x34, name:'authenticationRequired', cn:'需要认证', why:'ISO 14229-1:2020 引入的 29 服务认证未完成', tip:'新平台 ECU 可能用 29 替代 27，先做证书/所有权验证'},
+  {c:0x35, name:'invalidKey', cn:'密钥无效', why:'种子密钥算法结果不匹配', tip:'核对 27 算法实现、字节序、种子是否过期（部分 ECU 一次性种子）'},
+  {c:0x36, name:'exceedNumberOfAttempts', cn:'超过尝试次数', why:'连续送错密钥，进入锁定', tip:'需要下电/等待延时（通常 10s 或 10min）后重试'},
+  {c:0x37, name:'requiredTimeDelayNotExpired', cn:'延时未到', why:'两次 27 请求之间的最小间隔未满足', tip:'按 CDD 里的 delay timer（常见 10s）等待'},
+  {c:0x38, name:'reservedByExtendedDataLinkSecurityDocument', cn:'保留（扩展数据链路安全）', why:'ISO 14229-1:2020 预留', tip:'通常遇到说明 ECU 用了更严的安全策略'},
+  {c:0x50, name:'reserved', cn:'保留', why:'标准预留，勿使用', tip:'若真遇到，查供应商私有定义'},
+  {c:0x70, name:'uploadDownloadNotAccepted', cn:'上传/下载未接受', why:'34/35 被拒：地址、长度、格式标识符不合法', tip:'检查 ALFID 的地址/长度字节数；是否在编程会话；是否已擦除'},
+  {c:0x71, name:'transferDataSuspended', cn:'传输数据被挂起', why:'36 传输中被打断（超时、电压跌落）', tip:'看是否有掉电/复位；确认 blockSequenceCounter 回绕'},
+  {c:0x72, name:'generalProgrammingFailure', cn:'通用编程失败', why:'Flash 擦写校验失败、写保护、内部错误', tip:'检查写保护、供电稳定性、擦除是否成功'},
+  {c:0x73, name:'wrongBlockSequenceCounter', cn:'块序号错误', why:'36 的 BSC 不连续（期望 N+1，收到别的）', tip:'BSC 从 0x01 开始，0xFF 后回 0x00；重发时 BSC 不能递增'},
+  {c:0x78, name:'requestCorrectlyReceived-ResponsePending', cn:'请求已收到，响应挂起', why:'不是错误！ECU 需要更长时间，先把 P2 延长到 P2*', tip:'正常等待即可；若长期只回 78 直到超时，说明 ECU 卡死'},
+  {c:0x7E, name:'subFunctionNotSupportedInActiveSession', cn:'当前会话不支持该子功能', why:'子功能存在，但当前会话不允许', tip:'如默认会话下不能 31 01；先 10 03'},
+  {c:0x7F, name:'serviceNotSupportedInActiveSession', cn:'当前会话不支持该服务', why:'服务存在，但当前会话不允许', tip:'最典型：默认会话下发 2E/31/34，先切扩展或编程会话'},
+  {c:0x81, name:'rpmTooHigh', cn:'转速过高', why:'发动机转速超过允许值', tip:'条件类 NRC，需停机操作'},
+  {c:0x82, name:'rpmTooLow', cn:'转速过低', why:'转速低于允许值', tip:'可能需要发动机运行'},
+  {c:0x83, name:'engineIsRunning', cn:'发动机运行中', why:'要求熄火', tip:'KL15 ON 但发动机不启动'},
+  {c:0x84, name:'engineIsNotRunning', cn:'发动机未运行', why:'要求发动机运行', tip:'启动发动机后重试'},
+  {c:0x85, name:'engineRunTimeTooLow', cn:'运行时间不足', why:'发动机运行时长不够', tip:'等待满足最短运行时间'},
+  {c:0x86, name:'temperatureTooHigh', cn:'温度过高', why:'冷却液/油温超限', tip:'冷却后重试'},
+  {c:0x87, name:'temperatureTooLow', cn:'温度过低', why:'温度低于允许值', tip:'预热后重试'},
+  {c:0x88, name:'vehicleSpeedTooHigh', cn:'车速过高', why:'车速超过允许值', tip:'停车、拉手刹后重试'},
+  {c:0x89, name:'vehicleSpeedTooLow', cn:'车速过低', why:'车速低于允许值', tip:'需在行驶状态下执行'},
+  {c:0x8A, name:'throttle/PedalTooHigh', cn:'油门/踏板过高', why:'踏板开度超限', tip:'松开油门'},
+  {c:0x8B, name:'throttle/PedalTooLow', cn:'油门/踏板过低', why:'踏板开度低于要求', tip:'踩下踏板'},
+  {c:0x8C, name:'transmissionRangeNotInNeutral', cn:'档位不在空挡', why:'要求 N 挡', tip:'挂 N 挡'},
+  {c:0x8D, name:'transmissionRangeNotInGear', cn:'档位未挂挡', why:'要求挂挡', tip:'挂入行驶挡'},
+  {c:0x8F, name:'brakeSwitch(es)NotClosed', cn:'制动开关未闭合', why:'未踩刹车', tip:'踩下制动踏板'},
+  {c:0x90, name:'shifterLeverNotInPark', cn:'换挡杆不在 P 挡', why:'要求 P 挡', tip:'挂 P 挡'},
+  {c:0x91, name:'torqueConverterClutchLocked', cn:'变矩器离合器锁止', why:'TCC 处于锁止状态', tip:'降速/停车后重试'},
+  {c:0x92, name:'voltageTooHigh', cn:'电压过高', why:'系统电压超过上限', tip:'检查充电系统、发电机'},
+  {c:0x93, name:'voltageTooLow', cn:'电压过低', why:'系统电压低于下限（刷写时最常见）', tip:'接稳压电源，保持 13.5V 左右'}
+];
+
+const SERVICES = [
+  {sid:0x10, name:'DiagnosticSessionControl', cn:'诊断会话控制', desc:'切换到指定会话。响应会带回 P2/P2*（0x0032=50ms, 0x01F4=500ms 单位 1ms…实际为 P2 与 P2*×10ms）',
+   req:'10 <sub>', resp:'50 <sub> [P2 P2*]', subs:[
+    {v:0x01,n:'defaultSession',c:'默认会话'},{v:0x02,n:'programmingSession',c:'编程会话'},
+    {v:0x03,n:'extendedDiagnosticSession',c:'扩展诊断会话'},{v:0x04,n:'safetySystemDiagnosticSession',c:'安全系统诊断会话'}]},
+  {sid:0x11, name:'ECUReset', cn:'ECU 复位', desc:'请求 ECU 复位。部分 ECU 会先回 51 再重启，也可能直接断链',
+   req:'11 <sub>', resp:'51 <sub> [powerDownTime]', subs:[
+    {v:0x01,n:'hardReset',c:'硬复位'},{v:0x02,n:'keyOffOnReset',c:'钥匙关-开复位'},
+    {v:0x03,n:'softReset',c:'软复位'},{v:0x04,n:'enableRapidPowerShutDown',c:'使能快速掉电'},
+    {v:0x05,n:'disableRapidPowerShutDown',c:'禁止快速掉电'}]},
+  {sid:0x14, name:'ClearDiagnosticInformation', cn:'清除诊断信息', desc:'清除指定组的 DTC 及快照/扩展数据。0xFFFFFF = 全部',
+   req:'14 <groupOfDTC 3B>', resp:'54', subs:[]},
+  {sid:0x19, name:'ReadDTCInformation', cn:'读取 DTC 信息', desc:'读取 DTC 数量、列表、快照、扩展数据、状态等',
+   req:'19 <sub> [...]', resp:'59 <sub> [...]', subs:[
+    {v:0x01,n:'reportNumberOfDTCByStatusMask',c:'按状态掩码报 DTC 数量'},
+    {v:0x02,n:'reportDTCByStatusMask',c:'按状态掩码报 DTC 列表'},
+    {v:0x03,n:'reportDTCSnapshotIdentification',c:'报快照记录标识'},
+    {v:0x04,n:'reportDTCSnapshotRecordByDTCNumber',c:'按 DTC 读快照记录'},
+    {v:0x06,n:'reportDTCExtDataRecordByDTCNumber',c:'按 DTC 读扩展数据'},
+    {v:0x0A,n:'reportSupportedDTC',c:'报所有支持的 DTC'},
+    {v:0x0B,n:'reportFirstTestFailedDTC',c:'报首个测试失败 DTC'},
+    {v:0x0C,n:'reportFirstConfirmedDTC',c:'报首个已确认 DTC'},
+    {v:0x0D,n:'reportMostRecentTestFailedDTC',c:'报最近测试失败 DTC'},
+    {v:0x0E,n:'reportMostRecentConfirmedDTC',c:'报最近确认 DTC'},
+    {v:0x14,n:'reportDTCFaultDetectionCounter',c:'报故障检测计数器'},
+    {v:0x15,n:'reportDTCWithPermanentStatus',c:'报永久状态 DTC'}]},
+  {sid:0x22, name:'ReadDataByIdentifier', cn:'按标识符读数据', desc:'读一个或多个 DID 的数据，最常用的服务。响应里 DID 后跟实际数据',
+   req:'22 <DID Hi> <DID Lo> [DID...]', resp:'62 <DID> <data>', subs:[]},
+  {sid:0x23, name:'ReadMemoryByAddress', cn:'按地址读内存', desc:'按物理地址读，需在扩展/编程会话且通常要安全解锁',
+   req:'23 <ALFID> <addr> <size>', resp:'63 <data>', subs:[]},
+  {sid:0x24, name:'ReadScalingDataByIdentifier', cn:'读缩放信息', desc:'读取 DID 对应的缩放/换算信息',
+   req:'24 <DID>', resp:'64 <DID> <scaling>', subs:[]},
+  {sid:0x27, name:'SecurityAccess', cn:'安全访问', desc:'奇数子功能请求种子，偶数子功能送密钥。解锁等级 = (sub+1)/2',
+   req:'27 <sub> [seed/key]', resp:'67 <sub> <seed/key>', subs:[
+    {v:0x01,n:'requestSeed (level 1)',c:'请求种子，等级1'},{v:0x02,n:'sendKey (level 1)',c:'发送密钥，等级1'},
+    {v:0x03,n:'requestSeed (level 3)',c:'请求种子，等级3'},{v:0x04,n:'sendKey (level 3)',c:'发送密钥，等级3'},
+    {v:0x41,n:'requestSeed (level 0x21)',c:'请求种子，高位等级'},{v:0x42,n:'sendKey (level 0x21)',c:'发送密钥，高位等级'}]},
+  {sid:0x28, name:'CommunicationControl', cn:'通信控制', desc:'控制 ECU 收/发报文，常用于刷写前后关闭应用报文',
+   req:'28 <sub> <communicationType>', resp:'68 <sub>', subs:[
+    {v:0x00,n:'enableRxAndTx',c:'使能收发'},{v:0x01,n:'enableRxAndDisableTx',c:'使能收、禁发'},
+    {v:0x02,n:'disableRxAndEnableTx',c:'禁收、使能发'},{v:0x03,n:'disableRxAndTx',c:'禁收禁发'},
+    {v:0x04,n:'enableRxAndTxWithEnhancedAddressInformation',c:'使能收发（增强地址）'},
+    {v:0x05,n:'enableRxAndDisableTxWithEnhancedAddressInformation',c:'使能收禁发（增强地址）'}]},
+  {sid:0x29, name:'Authentication', cn:'认证', desc:'ISO 14229-1:2020 新增，基于证书/挑战应答，逐步替代 27',
+   req:'29 <sub> [...]', resp:'69 <sub> [...]', subs:[
+    {v:0x00,n:'deAuthenticate',c:'取消认证'},
+    {v:0x01,n:'verifyCertificateUnidirectional',c:'单向证书验证'},
+    {v:0x02,n:'verifyCertificateBidirectional',c:'双向证书验证'},
+    {v:0x03,n:'proofOfOwnership',c:'所有权证明'},
+    {v:0x04,n:'transmitCertificate',c:'传输证书'},
+    {v:0x05,n:'requestChallengeForAuthentication',c:'请求认证挑战'},
+    {v:0x06,n:'verifyProofOfOwnershipUnidirectional',c:'单向所有权验证'},
+    {v:0x07,n:'verifyProofOfOwnershipBidirectional',c:'双向所有权验证'},
+    {v:0x08,n:'authenticationConfiguration',c:'认证配置'}]},
+  {sid:0x2A, name:'ReadDataByPeriodicIdentifier', cn:'周期读数据', desc:'设置周期性上报指定标识符的数据',
+   req:'2A <transmissionMode> <periodicDID...>', resp:'6A <mode> [data]', subs:[
+    {v:0x01,n:'slowRate',c:'慢速率'},{v:0x02,n:'mediumRate',c:'中速率'},
+    {v:0x03,n:'fastRate',c:'快速率'},{v:0x04,n:'stopSending',c:'停止发送'}]},
+  {sid:0x2C, name:'DynamicallyDefineDataIdentifier', cn:'动态定义 DID', desc:'运行时组合一个虚拟 DID，把多个 DID/内存片段拼起来一次性读',
+   req:'2C <sub> [...]', resp:'6C <sub> [...]', subs:[
+    {v:0x01,n:'defineByIdentifier',c:'按 DID 组合定义'},
+    {v:0x02,n:'defineByMemoryAddress',c:'按内存地址组合定义'},
+    {v:0x03,n:'clearDynamicallyDefinedDataIdentifier',c:'清除动态 DID'}]},
+  {sid:0x2E, name:'WriteDataByIdentifier', cn:'按标识符写数据', desc:'写 DID 数据，通常需扩展会话 + 安全解锁 + 写前条件检查',
+   req:'2E <DID> <data>', resp:'6E <DID>', subs:[]},
+  {sid:0x2F, name:'InputOutputControlByIdentifier', cn:'输入输出控制', desc:'强制控制执行器（IO 控制），做下线检测常用',
+   req:'2F <DID> <controlOption> [controlState]', resp:'6F <DID> <controlOption>', subs:[
+    {v:0x00,n:'returnControlToECU',c:'归还控制权'},
+    {v:0x01,n:'resetToDefault',c:'恢复默认值'},
+    {v:0x02,n:'freezeCurrentState',c:'冻结当前状态'},
+    {v:0x03,n:'shortTermAdjustment',c:'短期调节'}]},
+  {sid:0x31, name:'RoutineControl', cn:'例程控制', desc:'启动/停止/查询例程，刷写前擦除、自检、标定都靠它。RoutineId 由厂商定义（FF00 擦除内存 / FF01 检查编程依赖是 ISO 定义的，其余查 CDD；正响应状态字节非 0 即执行失败）',
+   req:'31 <sub> <RID Hi> <RID Lo> [data]', resp:'71 <sub> <RID> <status> [data]', subs:[
+    {v:0x01,n:'startRoutine',c:'启动例程'},
+    {v:0x02,n:'stopRoutine',c:'停止例程'},
+    {v:0x03,n:'requestRoutineResults',c:'查询例程结果'}]},
+  {sid:0x34, name:'RequestDownload', cn:'请求下载', desc:'刷写第一步：告知地址与长度，ECU 返回 maxNumberOfBlockLength',
+   req:'34 <dataFormatId> <ALFID> <addr> <size>', resp:'74 <lengthFormatId> <maxBlockLen>', subs:[]},
+  {sid:0x35, name:'RequestUpload', cn:'请求上传', desc:'从 ECU 上传数据（回读 Flash）',
+   req:'35 <dataFormatId> <ALFID> <addr> <size>', resp:'75 <lengthFormatId> <maxBlockLen>', subs:[]},
+  {sid:0x36, name:'TransferData', cn:'传输数据', desc:'按块传输。blockSequenceCounter 从 0x01 开始，0xFF 后回 0x00，重发时不自增',
+   req:'36 <BSC> <data>', resp:'76 <BSC> [data]', subs:[]},
+  {sid:0x37, name:'RequestTransferExit', cn:'请求退出传输', desc:'结束上传/下载，可选带校验信息',
+   req:'37 [data]', resp:'77 [data]', subs:[]},
+  {sid:0x38, name:'RequestFileTransfer', cn:'文件传输', desc:'按文件名而非地址传输（部分新平台用）',
+   req:'38 <modeOfOperation> <filePathAndNameLen> <dataFormatId> <filePathAndName> [...]', resp:'78 <modeOfOperation> [...]', subs:[
+    {v:0x01,n:'addFile',c:'新增文件'},{v:0x02,n:'deleteFile',c:'删除文件'},
+    {v:0x03,n:'replaceFile',c:'替换文件'},{v:0x04,n:'readFile',c:'读文件'},
+    {v:0x05,n:'readDir',c:'读目录'}]},
+  {sid:0x3D, name:'WriteMemoryByAddress', cn:'按地址写内存', desc:'按物理地址写，需解锁 + 会话，危险操作',
+   req:'3D <ALFID> <addr> <size> <data>', resp:'7D', subs:[]},
+  {sid:0x3E, name:'TesterPresent', cn:'保持连接', desc:'告诉 ECU 测试仪还在。非默认会话下 S3 超时（5s）会掉回默认会话',
+   req:'3E <sub>', resp:'7E <sub>', subs:[
+    {v:0x00,n:'zeroSubFunction',c:'正常响应'},
+    {v:0x80,n:'suppressPosRspMsgIndicationBit',c:'抑制正响应（常用）'}]},
+  {sid:0x83, name:'AccessTimingParameter', cn:'访问定时参数', desc:'读/改 P2、P2* 等定时参数',
+   req:'83 <sub> [...]', resp:'C3 <sub> [...]', subs:[
+    {v:0x01,n:'readExtendedTimingParameterSet',c:'读扩展定时参数'},
+    {v:0x02,n:'setTimingParametersToDefaultValues',c:'恢复默认值'},
+    {v:0x03,n:'readCurrentlyActiveTimingParameters',c:'读当前生效参数'},
+    {v:0x04,n:'setTimingParametersToGivenValues',c:'设置为给定值'}]},
+  {sid:0x84, name:'SecuredDataTransmission', cn:'安全数据传输', desc:'在应用层再加一层安全传输封装',
+   req:'84 <data>', resp:'C4 <data>', subs:[]},
+  {sid:0x85, name:'ControlDTCSetting', cn:'DTC 设置控制', desc:'刷写/测试时关闭 DTC 记录，避免误报故障',
+   req:'85 <sub>', resp:'C5 <sub>', subs:[
+    {v:0x01,n:'on',c:'开启 DTC 设置'},{v:0x02,n:'off',c:'关闭 DTC 设置'}]},
+  {sid:0x86, name:'ResponseOnEvent', cn:'事件响应', desc:'注册事件触发自动响应',
+   req:'86 <sub> [...]', resp:'C6 <sub> [...]', subs:[
+    {v:0x00,n:'stopResponseOnEvent',c:'停止事件响应'},
+    {v:0x01,n:'onDTCStatusChange',c:'DTC 状态变化时上报'},
+    {v:0x03,n:'onChangeOfDataIdentifier',c:'DID 数据变化时上报'},
+    {v:0x04,n:'reportActivatedEvents',c:'上报已激活事件'}]},
+  {sid:0x87, name:'LinkControl', cn:'链路控制', desc:'切换波特率（部分厂商用于刷写提速）',
+   req:'87 <sub> [...]', resp:'C7 <sub> [...]', subs:[
+    {v:0x01,n:'verifyModeTransitionWithFixedParameter',c:'验证模式切换（固定参数）'},
+    {v:0x02,n:'verifyModeTransitionWithSpecificParameter',c:'验证模式切换（指定参数）'},
+    {v:0x03,n:'transitionMode',c:'执行模式切换'}]}
+];
+
+const DID_LIST = [
+  {did:0xF180, name:'bootSoftwareIdentification', cn:'Boot 软件标识', note:'bootloader 版本号，4 字节常见'},
+  {did:0xF181, name:'applicationSoftwareIdentification', cn:'应用软件标识', note:'应用软件 ID'},
+  {did:0xF182, name:'applicationDataIdentification', cn:'应用数据标识', note:'标定数据 ID'},
+  {did:0xF183, name:'bootSoftwareFingerprint', cn:'Boot 软件指纹', note:'刷写校验用'},
+  {did:0xF184, name:'applicationSoftwareFingerprint', cn:'应用软件指纹', note:'刷写校验用'},
+  {did:0xF185, name:'applicationDataFingerprint', cn:'应用数据指纹', note:'刷写校验用'},
+  {did:0xF186, name:'activeDiagnosticSession', cn:'当前诊断会话', note:'1 字节：01/02/03/04，用来确认是否真的进了扩展会话'},
+  {did:0xF187, name:'vehicleManufacturerSparePartNumber', cn:'整车厂零件号', note:'ASCII，常见 11–14 字节'},
+  {did:0xF188, name:'vehicleManufacturerECUSoftwareNumber', cn:'整车厂软件号', note:'ASCII/BCD'},
+  {did:0xF189, name:'vehicleManufacturerECUSoftwareVersionNumber', cn:'整车厂软件版本号', note:'ASCII'},
+  {did:0xF18A, name:'systemSupplierIdentifier', cn:'供应商代码', note:'ASCII，如 "BOSCH"/"CONTINENTAL"'},
+  {did:0xF18B, name:'ECUManufacturingDate', cn:'ECU 生产日期', note:'BCD：年(2)+月+日'},
+  {did:0xF18C, name:'ECUSerialNumber', cn:'ECU 序列号', note:'ASCII，唯一标识'},
+  {did:0xF18D, name:'supportedFunctionalUnits', cn:'支持的功能单元', note:'位图'},
+  {did:0xF190, name:'vehicleIdentificationNumber', cn:'VIN 车辆识别码', note:'17 字节 ASCII，必然走多帧（0x14 长度）'},
+  {did:0xF191, name:'vehicleManufacturerECUHardwareNumber', cn:'整车厂硬件号', note:'ASCII'},
+  {did:0xF192, name:'ECUSoftwareNumber', cn:'ECU 软件号', note:'部分厂商定义不同'},
+  {did:0xF193, name:'ECUSoftwareVersionNumber', cn:'ECU 软件版本号', note:''},
+  {did:0xF194, name:'vehicleManufacturerECUHardwareVersionNumber', cn:'整车厂硬件版本号', note:''},
+  {did:0xF195, name:'systemSupplierECUHardwareNumber', cn:'供应商硬件号', note:''},
+  {did:0xF196, name:'systemSupplierECUHardwareVersionNumber', cn:'供应商硬件版本号', note:''},
+  {did:0xF197, name:'systemSupplierECUSoftwareNumber', cn:'供应商软件号', note:''},
+  {did:0xF198, name:'systemSupplierECUSoftwareVersionNumber', cn:'供应商软件版本号', note:''},
+  {did:0xF199, name:'exhaustRegulationOrTypeApprovalNumber', cn:'排放法规/认证号', note:'法规相关'},
+  {did:0xF19E, name:'vehicleManufacturerKitAssemblyPartNumber', cn:'整车厂成套件号', note:'ISO 定义，部分 OEM 用它放整包（Kit）零件号'},
+  {did:0xF1A0, name:'vehicleManufacturerECUHardwareNumber (alt)', cn:'硬件号（备用）', note:'部分 OEM 覆盖定义'},
+  {did:0x0100, name:'— OEM 自定义区起始 —', cn:'整车厂自定义', note:'0x0100–0xA5FF 通常为 OEM 自定义，必须查 CDD/诊断规范'},
+  {did:0xA600, name:'— reservedForLegislativeUse —', cn:'法规保留区', note:'0xA600–0xA7FF 留给法规用途（排放/OBD 等），OEM 不得占用'},
+  {did:0xF1A1, name:'— 识别信息区尾 —', cn:'识别信息区', note:'0xF180–0xF1FF 为 ISO 定义的识别信息区'},
+  {did:0xF200, name:'periodicDID 区', cn:'周期数据标识符区', note:'0xF200–0xF2FF 供 2A 服务使用'},
+  {did:0xF300, name:'dynamicallyDefinedDID 区', cn:'动态定义 DID 区', note:'0xF300–0xF3FF 供 2C 服务使用'},
+  {did:0xFD00, name:'— 供应商自定义区 —', cn:'系统供应商自定义', note:'0xFD00–0xFEFF 供应商私有'},
+  {did:0xFF00, name:'— 标准保留区（不是 DID）—', cn:'保留 / 例程号', note:'0xFF00–0xFFFF 是 ISO 保留段；注意 0xFF00 当例程号用是 eraseMemory（擦除内存），见「例程 31」页'}
+];
+
+/* 例程号（服务 0x31 的 RoutineIdentifier）。
+   ISO 14229-1 只定义了两条：FF00 擦除内存、FF01 检查编程依赖；
+   其余编号各 OEM 各写各的，一律以 CDD / 诊断规范为准，别照抄别家。 */
+const ROUTINE_LIST = [
+  {rid:0xFF00, grp:'ISO', name:'eraseMemory', cn:'擦除内存',
+   ex:'31 01 FF 00 → 71 01 FF 00 00',
+   note:'刷写流程第一步：擦除 Flash / EEPROM。状态 0x00 = 擦除成功，0x01 = 擦除失败（多数 OEM 就只有这两种）'},
+  {rid:0xFF01, grp:'ISO', name:'checkProgrammingDependencies', cn:'检查编程依赖',
+   ex:'31 01 FF 01 → 71 01 FF 01 00',
+   note:'擦除 / 写完之后校验各逻辑块是否成套、版本是否匹配。0x00 = 依赖满足，非 0 = 依赖不满足'},
+  {rid:0x0200, grp:'OEM', name:'checkProgrammingPreconditions', cn:'编程前置条件检查',
+   ex:'31 01 02 00 → 71 01 02 00 00',
+   note:'编程会话下先自检（电压、车速、档位、发动机状态等），不满足时回状态 0x01 或直接 7F 31 22'},
+  {rid:0x0301, grp:'OEM', name:'eraseMirrorMemoryDTCs', cn:'擦除镜像内存 DTC',
+   ex:'31 01 03 01 → 71 01 03 01 00',
+   note:'部分 OEM 用它清镜像内存里的历史 DTC，和 14 FF FF FF 不是一回事'},
+  {rid:null, range:'0x0200–0x02FF', grp:'段', name:'vehicleManufacturerSpecific', cn:'厂商自定义段',
+   ex:'31 01 02 xx',
+   note:'编程前置条件、自检、擦除类例程基本都落在这个段。同一个例程号在不同 OEM 可能指完全不同的东西'}
+];
+
+function findRoutine(rid){
+  if(rid === null || rid === undefined) return null;
+  return ROUTINE_LIST.find(r => r.rid === rid) || null;
+}
+/* routineStatusRecord：0 = 成功，非 0 = 失败（具体值由例程自己定义） */
+function routineStatusText(st){
+  if(st === 0) return '0x00 — 例程执行成功';
+  if(st === 1) return '0x01 — 例程执行失败';
+  return '0x' + hex2(st) + ' — 非 0，按失败处理（具体含义查厂商定义）';
+}
+/* 例程失败判定：0x71 是 RoutineControl 的正响应，第 5 字节（routineStatusRecord）非 0 就是没做成。
+   统计、跳转、卡片三处共用这一条规则，避免各写一遍走样。 */
+function isRoutineFail(p){
+  return !!p && p.length >= 5 && p[0] === 0x71 && p[4] !== 0;
+}
+
+const DTC_BITS = [
+  {b:0, n:'testFailed', c:'当前测试失败', d:'本次检测到故障（实时位）'},
+  {b:1, n:'testFailedThisOperationCycle', c:'本循环测试失败', d:'本次上电循环内失败过'},
+  {b:2, n:'pendingDTC', c:'待定 DTC', d:'本/上次循环失败，尚未确认'},
+  {b:3, n:'confirmedDTC', c:'已确认 DTC', d:'连续失败达到阈值，正式记录'},
+  {b:4, n:'testNotCompletedSinceLastClear', c:'自清码后未完成测试', d:'1 = 还没测过'},
+  {b:5, n:'testFailedSinceLastClear', c:'自清码后失败过', d:'清码后至少失败一次'},
+  {b:6, n:'testNotCompletedThisOperationCycle', c:'本循环未完成测试', d:'1 = 本循环没测'},
+  {b:7, n:'warningIndicatorRequested', c:'请求点亮报警灯', d:'MIL/警告灯'}
+];
+
+/* =========================================================
+   日志文件解析：ASC / TRC / BLF
+   输出统一帧模型 {ts, ch, id, ext, rawDir, fd, data[]}
+   ========================================================= */
+
+const FD_LEN = [0,1,2,3,4,5,6,7,8,12,16,20,24,32,48,64];
+
+/* ---------- zlib inflate（RFC 1950/1951），纯 JS 实现 ---------- */
+const LBASE=[3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
+const LEXT =[0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0];
+const DBASE=[1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
+const DEXT =[0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
+
+function buildHuff(lengths){
+  const MAXB = 15;
+  const count = new Uint16Array(MAXB + 1);
+  for(let i=0;i<lengths.length;i++) count[lengths[i]]++;
+  if(count[0] === lengths.length) return {count, symbol:new Uint16Array(0), max:0};
+  let left = 1;
+  for(let len=1; len<=MAXB; len++){
+    left = (left << 1) - count[len];
+    if(left < 0) throw new Error('inflate: 码表不完整');
+  }
+  const offs = new Uint16Array(MAXB + 1);
+  for(let len=1; len<MAXB; len++) offs[len+1] = offs[len] + count[len];
+  const symbol = new Uint16Array(lengths.length);
+  for(let i=0;i<lengths.length;i++) if(lengths[i]) symbol[offs[lengths[i]]++] = i;
+  let max = MAXB;
+  while(max > 0 && !count[max]) max--;
+  return {count, symbol, max};
+}
+
+function inflateRaw(src, start, end){
+  let p = start | 0;
+  let bb = 0, bc = 0;
+  let out = new Uint8Array(1 << 16);
+  let olen = 0;
+
+  function need(n){
+    if(olen + n > out.length){
+      let cap = out.length;
+      while(cap < olen + n) cap <<= 1;
+      const t = new Uint8Array(cap);
+      t.set(out.subarray(0, olen));
+      out = t;
+    }
+  }
+  function bits(n){
+    while(bc < n){
+      if(p >= end) throw new Error('inflate: 数据提前结束');
+      bb |= src[p++] << bc;
+      bc += 8;
+    }
+    const v = bb & ((1 << n) - 1);
+    bb >>>= n; bc -= n;
+    return v;
+  }
+  function decode(t){
+    let code = 0, first = 0, index = 0;
+    for(let len=1; len<=t.max; len++){
+      code |= bits(1);
+      const c = t.count[len];
+      if(code - first < c) return t.symbol[index + (code - first)];
+      index += c;
+      first = (first + c) << 1;
+      code <<= 1;
+    }
+    throw new Error('inflate: 非法哈夫曼编码');
+  }
+  function block(lit, dist){
+    for(;;){
+      const sym = decode(lit);
+      if(sym < 256){
+        need(1);
+        out[olen++] = sym;
+      } else if(sym === 256){
+        return;
+      } else {
+        const li = sym - 257;
+        if(li >= 29) throw new Error('inflate: 非法长度码');
+        const len = LBASE[li] + bits(LEXT[li]);
+        const ds = decode(dist);
+        if(ds >= 30) throw new Error('inflate: 非法距离码');
+        const d = DBASE[ds] + bits(DEXT[ds]);
+        if(d > olen) throw new Error('inflate: 距离越界');
+        need(len);
+        for(let i=0;i<len;i++){ out[olen] = out[olen - d]; olen++; }
+      }
+    }
+  }
+
+  let last = 0;
+  while(!last){
+    last = bits(1);
+    const type = bits(2);
+    if(type === 0){
+      bb = 0; bc = 0;
+      if(p + 4 > end) throw new Error('inflate: 存储块头截断');
+      const len = src[p] | (src[p+1] << 8);
+      p += 4;
+      if(p + len > end) throw new Error('inflate: 存储块截断');
+      need(len);
+      out.set(src.subarray(p, p + len), olen);
+      olen += len; p += len;
+    } else if(type === 1){
+      const lit = new Uint8Array(288);
+      for(let i=0;i<144;i++) lit[i] = 8;
+      for(let i=144;i<256;i++) lit[i] = 9;
+      for(let i=256;i<280;i++) lit[i] = 7;
+      for(let i=280;i<288;i++) lit[i] = 8;
+      block(buildHuff(lit), buildHuff(new Uint8Array(30).fill(5)));
+    } else if(type === 2){
+      const hlit = bits(5) + 257;
+      const hdist = bits(5) + 1;
+      const hclen = bits(4) + 4;
+      const order = [16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
+      const clen = new Uint8Array(19);
+      for(let i=0;i<hclen;i++) clen[order[i]] = bits(3);
+      const ch = buildHuff(clen);
+      const lens = new Uint8Array(hlit + hdist);
+      let n = 0;
+      while(n < lens.length){
+        const sym = decode(ch);
+        if(sym < 16){ lens[n++] = sym; continue; }
+        let rep, val = 0;
+        if(sym === 16){ if(!n) throw new Error('inflate: 重复码无前值'); val = lens[n-1]; rep = 3 + bits(2); }
+        else if(sym === 17){ rep = 3 + bits(3); }
+        else { rep = 11 + bits(7); }
+        while(rep-- > 0 && n < lens.length) lens[n++] = val;
+      }
+      block(buildHuff(lens.subarray(0, hlit)), buildHuff(lens.subarray(hlit)));
+    } else {
+      throw new Error('inflate: 未知块类型');
+    }
+  }
+  return out.subarray(0, olen);
+}
+
+function inflateZlib(u8){
+  if(u8.length < 6) throw new Error('zlib 数据过短');
+  if((u8[0] & 0x0F) !== 8) throw new Error('不支持的 zlib 压缩方法');
+  if(u8[1] & 0x20) throw new Error('zlib 使用了预置字典，暂不支持');
+  return inflateRaw(u8, 2, u8.length);
+}
+
+/* ---------- BLF（Vector Binary Logging Format） ---------- */
+function parseBlf(u8){
+  if(String.fromCharCode(u8[0],u8[1],u8[2],u8[3]) !== 'LOGG') throw new Error('不是 BLF 文件（缺少 LOGG 签名）');
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  let hdrSize = dv.getUint32(4, true);
+  if(!hdrSize || hdrSize < 32 || hdrSize > 4096) hdrSize = 144;
+
+  const frames = [];
+  const stats = {containers:0, objects:0, compressed:0, other:0};
+  const isObj = (b,i) => b[i]===0x4C && b[i+1]===0x4F && b[i+2]===0x42 && b[i+3]===0x4A;
+
+  // 第一遍：收集所有 LOG_CONTAINER 的数据（必要时解压）
+  const parts = [];
+  let pos = hdrSize;
+  let guard = 0;
+  while(pos + 16 <= u8.length && guard++ < 2e6){
+    let k = pos;
+    while(k < pos + 8 && k + 16 <= u8.length && !isObj(u8, k)) k++;
+    if(k >= pos + 8 || k + 16 > u8.length) break;
+    pos = k;
+    const objHdrSize = dv.getUint16(pos+4, true);
+    const objSize = dv.getUint32(pos+8, true);
+    const objType = dv.getUint32(pos+12, true);
+    if(objSize < 16 || pos + objSize > u8.length) break;
+    const body = pos + objHdrSize;
+    if(objType === 10 && body + 16 <= pos + objSize){
+      const method = dv.getUint16(body, true);
+      const payload = u8.subarray(body + 16, pos + objSize);
+      if(method === 0){
+        parts.push(payload);
+      } else if(method === 2){
+        parts.push(inflateZlib(payload));
+        stats.compressed++;
+      } else {
+        throw new Error('BLF 压缩方式 ' + method + ' 不受支持（仅支持 0=无 / 2=zlib）');
+      }
+      stats.containers++;
+    } else {
+      stats.other++;
+    }
+    pos += objSize + (objSize % 4);
+  }
+  if(!parts.length) throw new Error('BLF 中未找到任何日志容器（文件可能已损坏或版本过新）');
+
+  let total = 0;
+  for(const p of parts) total += p.length;
+  const big = new Uint8Array(total);
+  let w = 0;
+  for(const p of parts){ big.set(p, w); w += p.length; }
+  const bdv = new DataView(big.buffer, big.byteOffset, big.byteLength);
+
+  // 第二遍：遍历对象
+  let q = 0;
+  while(q + 16 <= big.length){
+    if(!isObj(big, q)){
+      let k = q;
+      while(k < q + 8 && k + 16 <= big.length && !isObj(big, k)) k++;
+      if(k >= q + 8 || k + 16 > big.length) break;
+      q = k;
+    }
+    const objHdrSize = bdv.getUint16(q+4, true);
+    const objVer = bdv.getUint16(q+6, true);
+    const objSize = bdv.getUint32(q+8, true);
+    const objType = bdv.getUint32(q+12, true);
+    if(objSize < 16 || q + objSize > big.length) break;
+    const body = q + objHdrSize;
+
+    let ts = 0, flags = 2;
+    if(objVer === 1 || objVer === 2){
+      flags = bdv.getUint32(q+16, true);
+      const raw64 = bdv.getBigUint64(q+24, true);
+      ts = Number(raw64) * (flags === 1 ? 1e-5 : 1e-9);
+    }
+    stats.objects++;
+
+    const push = (ch, id, dirFlag, data, fd) => {
+      frames.push({
+        ts, ch, id: id & 0x1FFFFFFF, ext: !!(id & 0x80000000),
+        rawDir: (dirFlag & 1) ? 'Tx' : 'Rx', fd: !!fd, data
+      });
+    };
+
+    if(objType === 1 || objType === 86){
+      // CAN_MESSAGE
+      if(body + 16 <= q + objSize){
+        const ch = bdv.getUint16(body, true);
+        const fl = big[body+2], dlc = big[body+3];
+        const id = bdv.getUint32(body+4, true);
+        const n = Math.min(dlc, 8);
+        push(ch, id, fl, Array.from(big.subarray(body+8, body+8+n)), false);
+      }
+    } else if(objType === 100){
+      // CAN_FD_MESSAGE: <HBBLLBBB5x64s> → fdFlags 在 +13，validBytes 在 +14，数据在 +20
+      if(body + 20 <= q + objSize){
+        const ch = bdv.getUint16(body, true);
+        const fl = big[body+2], dlc = big[body+3];
+        const id = bdv.getUint32(body+4, true);
+        const valid = big[body+14];
+        const n = Math.min(valid || (FD_LEN[dlc] || 0), 64);
+        push(ch, id, fl, Array.from(big.subarray(body+20, body+20+n)), true);
+      }
+    } else if(objType === 101){
+      // CAN_FD_MESSAGE_64
+      if(body + 40 <= q + objSize){
+        const ch = big[body];
+        const dlc = big[body+1], valid = big[body+2];
+        const id = bdv.getUint32(body+4, true);
+        const fflags = bdv.getUint32(body+12, true);
+        const dir = big[body+34];
+        const n = Math.min(valid || (FD_LEN[dlc] || 0), 64);
+        push(ch, id, dir, Array.from(big.subarray(body+40, body+40+n)), !!(fflags & 0x1000));
+      }
+    } else {
+      stats.other++;
+    }
+    q += objSize + (objSize % 4);
+  }
+
+  if(!frames.length) throw new Error('BLF 解析完成但未读到 CAN/FD 报文（对象类型可能不被支持）');
+  return {frames, info:{
+    format:'BLF', containers:stats.containers, compressed:stats.compressed,
+    objects:stats.objects, other:stats.other
+  }};
+}
+
+/* ---------- ASC（Vector ASCII） ---------- */
+function parseAsc(text){
+  const frames = [];
+  const isHex2 = t => /^[0-9A-Fa-f]{2}$/.test(t);
+  let fdCount = 0, skipped = 0;
+
+  for(const raw of text.split(/\r?\n/)){
+    if(!raw) continue;
+    const line = raw.trim();
+    if(!line) continue;
+    if(!/^\d/.test(line)){ skipped++; continue; }   // 时间戳必须以数字开头
+
+    const tk = line.split(/\s+/);
+    const ts = parseFloat(tk[0]);
+    if(!isFinite(ts)){ skipped++; continue; }
+
+    let i = 1, fd = false;
+    if(/^CANFD(_BRS)?$/i.test(tk[i] || '')){ fd = true; i++; }
+    if(!/^\d+$/.test(tk[i] || '')){ skipped++; continue; }
+    const ch = parseInt(tk[i], 10); i++;
+
+    let dir = '';
+    if(/^(Rx|Tx)$/i.test(tk[i] || '')){ dir = tk[i]; i++; }
+    let idTok = tk[i] || '';
+    if(/^(Rx|Tx)$/i.test(idTok)){ dir = idTok; i++; idTok = tk[i] || ''; }
+    if(!/^[0-9A-Fa-f]{1,8}x?$/.test(idTok)){ skipped++; continue; }
+    i++;
+    // 标准 ASC 行是 <ts> <ch> <id> <dir> d ...，方向在 ID 之后
+    if(!dir && /^(Rx|Tx)$/i.test(tk[i] || '')){ dir = tk[i]; i++; }
+
+    const ext = /x$/i.test(idTok);
+    const id = parseInt(idTok.replace(/x$/i, ''), 16);
+    if(!isFinite(id)){ skipped++; continue; }
+
+    let data = [];
+    let dIdx = -1;
+    for(let k=i; k<tk.length; k++){ if(tk[k] === 'd' || tk[k] === 'D'){ dIdx = k; break; } }
+
+    if(dIdx >= 0){
+      const lenTok = tk[dIdx + 1];
+      const bytes = [];
+      for(let k=dIdx+2; k<tk.length; k++){
+        if(isHex2(tk[k])) bytes.push(parseInt(tk[k], 16));
+        else if(bytes.length) break;
+      }
+      // 长度列可能是十进制也可能是十六进制，取能对上实际字节数的那个
+      let len = -1;
+      if(lenTok !== undefined){
+        const dec = parseInt(lenTok, 10), hex = parseInt(lenTok, 16);
+        if(dec >= 0 && dec <= bytes.length) len = dec;
+        else if(hex >= 0 && hex <= bytes.length) len = hex;
+      }
+      data = len >= 0 ? bytes.slice(0, len) : bytes;
+    } else {
+      // CANoe/python-can 的 CANFD 行没有 'd' 标记，取最长连续 2 位十六进制串
+      let bestS = -1, bestLen = 0, curS = -1, curLen = 0;
+      for(let k=i; k<tk.length; k++){
+        if(isHex2(tk[k])){
+          if(curS < 0){ curS = k; curLen = 0; }
+          curLen++;
+          if(curLen > bestLen){ bestLen = curLen; bestS = curS; }
+        } else { curS = -1; curLen = 0; }
+      }
+      if(bestS >= 0){
+        const arr = [];
+        for(let k=0; k<bestLen; k++) arr.push(parseInt(tk[bestS + k], 16));
+        const n = arr.length;
+        const firstTok = tk[bestS];
+        const preTok = tk[bestS - 1];
+        if(preTok && /^\d+$/.test(preTok) && parseInt(preTok, 10) === n){
+          // 长度列在数据串之外（1 位长度，如 "9"）
+          data = arr;
+        } else if(/^\d+$/.test(firstTok) && parseInt(firstTok, 10) === n - 1){
+          // 长度列是 2 位数并入了数据串（如 "64" / "12"），去掉首位
+          data = arr.slice(1);
+        } else {
+          data = arr;
+        }
+      }
+    }
+
+    if(fd) fdCount++;
+    frames.push({ts, ch, id, ext, rawDir: dir, fd: fd || data.length > 8, data});
+  }
+  if(!frames.length) throw new Error('ASC 中未解析到任何报文行');
+  return {frames, info:{format:'ASC', fdCount, skipped}};
+}
+
+/* ---------- TRC（PEAK PCAN-Explorer / 部分 CANoe 导出） ---------- */
+function parseTrc(text){
+  const frames = [];
+  let fdCount = 0, skipped = 0;
+
+  for(const raw of text.split(/\r?\n/)){
+    if(!raw) continue;
+    const line = raw.trim();
+    if(!line || line.startsWith(';')) continue;
+    if(!/^\d/.test(line)){ skipped++; continue; }
+
+    const tk = line.split(/\s+/);
+    const ts = parseFloat(tk[0]);
+    if(!isFinite(ts)){ skipped++; continue; }
+
+    let i = 1;
+    if(/^\d+$/.test(tk[i] || '')) i++;          // 通道
+    let idTok = tk[i] || ''; i++;
+    if(/^(Rx|Tx|R|T)$/i.test(idTok)){ idTok = tk[i] || ''; i++; }
+
+    let s = idTok.replace(/^0x/i, '');
+    if(!/^[0-9A-Fa-f]{1,8}x?$/i.test(s)){ skipped++; continue; }
+    const ext = /x$/i.test(s) || s.replace(/x$/i,'').length > 3;
+    const id = parseInt(s.replace(/x$/i, ''), 16);
+    if(!isFinite(id)){ skipped++; continue; }
+
+    const typ = (tk[i] || '').toLowerCase();
+    if(!/^(rx|tx|r|t)$/.test(typ)){ skipped++; continue; }
+    i++;
+
+    const dlc = parseInt(tk[i], 10);
+    i++;
+    const bytes = [];
+    for(; i<tk.length; i++){
+      if(/^[0-9A-Fa-f]{2}$/.test(tk[i])) bytes.push(parseInt(tk[i], 16));
+      else break;
+    }
+    const data = (isFinite(dlc) && dlc >= 0 && dlc <= bytes.length) ? bytes.slice(0, dlc) : bytes;
+    if(data.length > 8) fdCount++;
+
+    frames.push({ts, ch: 1, id, ext, rawDir: typ === 'tx' || typ === 't' ? 'Tx' : 'Rx',
+                 fd: data.length > 8, data});
+  }
+  if(!frames.length) throw new Error('TRC 中未解析到任何报文行（请确认是 PEAK 文本格式）');
+  return {frames, info:{format:'TRC', fdCount, skipped}};
+}
+
+/* ---------- 文本解码（UTF-8 失败则回退 GBK） ---------- */
+function decodeText(u8){
+  try { return new TextDecoder('utf-8', {fatal:true}).decode(u8); } catch(e){ /* 非 UTF-8 */ }
+  for(const enc of ['gb18030','gbk','windows-1252']){
+    try { return new TextDecoder(enc).decode(u8); } catch(e){ /* 浏览器不支持 */ }
+  }
+  return new TextDecoder().decode(u8);
+}
+
+function parseLogFile(u8){
+  if(u8.length < 4) throw new Error('文件内容过短');
+  if(String.fromCharCode(u8[0],u8[1],u8[2],u8[3]) === 'LOGG') return parseBlf(u8);
+  const text = decodeText(u8);
+  if(/\$FILEVERSION|\$COLUMNS/i.test(text)) return parseTrc(text);
+  if(/Begin Triggerblock|base hex|timestamps/i.test(text)) return parseAsc(text);
+  // 兜底：有 'd <len>' 行按 ASC，否则按 TRC
+  if(/^\s*\d+\.\d+\s+.*\sd\s+[0-9A-Fa-f]+\s/m.test(text)) return parseAsc(text);
+  return parseTrc(text);
+}
+
+function parseIdStr(s){
+  const t = String(s == null ? '' : s).trim().replace(/^0x/i, '').replace(/[xX]$/, '');
+  if(!t) return null;
+  const v = parseInt(t, 16);
+  return isFinite(v) && v >= 0 ? v : null;
+}
+
+/* =========================================================
+   工具函数
+   ========================================================= */
+
+function hex2(n){ return n.toString(16).toUpperCase().padStart(2,'0'); }
+/* 4 位十六进制：DID / RoutineId 都是 2 字节，写全 4 位才好和 CDD 对号 */
+function hex4(n){ return (n & 0xFFFF).toString(16).toUpperCase().padStart(4,'0'); }
+function bits8(n){ return n.toString(2).padStart(8,'0'); }
+function asciiOf(arr){
+  let s = '';
+  for(const b of arr){
+    s += (b>=0x20 && b<=0x7E) ? String.fromCharCode(b) : '.';
+  }
+  return s;
+}
+function esc(s){
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+/* 解析一行十六进制文本，容忍多种格式 */
+function parseBytes(raw){
+  const src = String(raw);
+  let id, ext = false;
+  const hashIdx = src.indexOf('#');
+  // 形如 7E0#021003：'#' 前是纯十六进制 ID（无空格）才算分隔符，否则 '#' 是注释
+  if(hashIdx > 0){
+    const pre = src.slice(0, hashIdx).trim();
+    if(/^[0-9A-Fa-f]{1,8}x?$/.test(pre)){
+      id = parseInt(pre.replace(/x$/i, ''), 16);
+      ext = /x$/i.test(pre) || pre.replace(/x$/i,'').length > 3;
+      raw = src.slice(hashIdx + 1);
+    }
+  }
+  let s = String(raw).replace(/(#|\/\/).*$/, '').trim();
+  if(!s) return {bytes:[], empty:true, id, ext};
+  // 去掉 CANoe 风格的行首 ID 与 DLC： "7E8  8  02 10 03 ..."
+  const tokens = s.split(/[\s,;]+/).filter(Boolean);
+  let bw = [];
+  // 若 token 形如 0x02 或 02 且纯 hex
+  if(tokens.length >= 3 && /^[0-9A-Fa-f]{3,8}$/.test(tokens[0]) && /^\d{1,2}$/.test(tokens[1])){
+    const rest = tokens.slice(2);
+    // 只有当剩余全部是 2 位 hex 时，才认为是 ID+DLC 形式
+    if(rest.every(t => /^(0x)?[0-9A-Fa-f]{1,2}$/.test(t))){
+      bw = rest;
+    } else {
+      bw = tokens;
+    }
+  } else {
+    bw = tokens;
+  }
+  // 处理连写形式 021003
+  let out = [];
+  for(const t of bw){
+    const tt = t.replace(/^0x/i,'');
+    if(/^[0-9A-Fa-f]{1,2}$/.test(tt)) out.push(parseInt(tt,16));
+    else if(/^[0-9A-Fa-f]{3,}$/.test(tt) && tt.length % 2 === 0){
+      for(let i=0;i<tt.length;i+=2) out.push(parseInt(tt.substr(i,2),16));
+    } else if(/^[0-9A-Fa-f]{3,}$/.test(tt)){
+      // 奇数长度，前补 0 视作单字节
+      const p = tt.length%2? '0'+tt : tt;
+      for(let i=0;i<p.length;i+=2) out.push(parseInt(p.substr(i,2),16));
+    } else {
+      return {bytes:[], error:'无法识别的字符: ' + t};
+    }
+  }
+  return {bytes: out, id, ext};
+}
+
+/* =========================================================
+   ISO-TP 帧解析
+   ========================================================= */
+function analyzeFrame(bytes, idx){
+  const n = bytes.length;
+  if(n === 0) return null;
+  const t = bytes[0] >> 4;
+  const res = {idx, bytes, warnings:[], type:'UK'};
+
+  if(t === 0x0){
+    res.type = 'SF';
+    let len = bytes[0] & 0x0F;
+    let off = 1;
+    if(len === 0){
+      // CAN FD 转义：只有 CAN_DL > 8 才允许这么写
+      len = bytes[1] ?? 0;
+      off = 2;
+      res.warnings.push('SF_DL=0，按 CAN FD 规则取 byte1 作为长度');
+      if(n <= 8) res.warnings.push('CAN_DL ≤ 8 时低 4 位的 0 是保留值，不能当转义用');
+    }
+    else if(len >= 0x08 && n > 8){
+      // 规范把低 4 位的 8–F 定义为 invalid：CAN_DL > 8 的单帧必须走 00 xx 转义
+      res.warnings.push('低 4 位 0x' + hex2(len) + ' 在 ISO 15765-2 里是无效值，CAN_DL > 8 的单帧必须用 00 xx 转义');
+    }
+    res.len = len;
+    res.payload = bytes.slice(off, off+len);
+    res.padLen = Math.max(0, n - off - len);
+    if(off + len > n) res.warnings.push('声明长度 ' + len + ' 超出实际数据，报文不完整');
+    res.fields = [
+      ['PCI 高 4 位', '0x0 → 单帧 (SingleFrame)'],
+      ['SF_DL 数据长度', len + ' 字节'],
+      ['数据域', res.payload.map(hex2).join(' ') || '—'],
+      ['填充字节', res.padLen > 0 ? res.padLen + ' 字节 (' + bytes.slice(off+len).map(hex2).join(' ') + ')' : '无']
+    ];
+    res.cells = [];
+    res.cells.push({h:hex2(bytes[0]), b:bits8(bytes[0]), r:'pci'});
+    // 声明长度可能大于实际数据（截断帧 / d N 与实际字节数不一致），这里必须按实际长度截断，
+    // 否则 bytes[i] 取到 undefined，hex2(undefined) 会把整页渲染打断
+    for(let i=off;i<Math.min(off+len, n);i++) res.cells.push({h:hex2(bytes[i]), b:bits8(bytes[i]), r:'data'});
+    for(let i=Math.min(off+len, n);i<n;i++) res.cells.push({h:hex2(bytes[i]), b:bits8(bytes[i]), r:'pad'});
+  }
+  else if(t === 0x1){
+    res.type = 'FF';
+    let total = ((bytes[0] & 0x0F) << 8) | (bytes[1] ?? 0);
+    let off = 2;
+    if(total === 0 && n >= 6){
+      total = (bytes[2]<<24 | bytes[3]<<16 | bytes[4]<<8 | bytes[5]) >>> 0;
+      off = 6;
+      res.warnings.push('12 位长度为 0，启用 32 位转义长度（CAN FD）');
+    }
+    res.totalLen = total;
+    res.payload = bytes.slice(off);
+    res.fields = [
+      ['PCI 高 4 位', '0x1 → 首帧 (FirstFrame)'],
+      ['12 位总长度', total + ' 字节 (0x' + total.toString(16).toUpperCase().padStart(3,'0') + ')'],
+      ['本帧数据', res.payload.length + ' 字节'],
+      ['剩余待收', Math.max(0, total - res.payload.length) + ' 字节 → 需 ' +
+        Math.ceil(Math.max(0,total-res.payload.length)/7) + ' 个连续帧']
+    ];
+    res.cells = [];
+    res.cells.push({h:hex2(bytes[0]), b:bits8(bytes[0]), r:'pci'});
+    if(n > 1) res.cells.push({h:hex2(bytes[1]), b:bits8(bytes[1]), r:'len'});
+    for(let i=off;i<n;i++) res.cells.push({h:hex2(bytes[i]), b:bits8(bytes[i]), r:'data'});
+    if(total < res.payload.length) res.warnings.push('总长度小于本帧携带数据，长度字段可能有误');
+  }
+  else if(t === 0x2){
+    res.type = 'CF';
+    const sn = bytes[0] & 0x0F;
+    res.sn = sn;
+    res.payload = bytes.slice(1);
+    res.fields = [
+      ['PCI 高 4 位', '0x2 → 连续帧 (ConsecutiveFrame)'],
+      ['SN 序号', '0x' + hex2(sn) + ' (' + sn + ')' + (sn===0 ? ' — 0x0F 之后的回绕' : '')],
+      ['本帧数据', res.payload.length + ' 字节'],
+      ['数据域', res.payload.map(hex2).join(' ')]
+    ];
+    res.cells = [];
+    res.cells.push({h:hex2(bytes[0]), b:bits8(bytes[0]), r:'pci'});
+    for(let i=1;i<n;i++) res.cells.push({h:hex2(bytes[i]), b:bits8(bytes[i]), r:'data'});
+  }
+  else if(t === 0x3){
+    res.type = 'FC';
+    const fs = bytes[0] & 0x0F;
+    const bs = bytes[1] ?? 0;
+    const st = bytes[2] ?? 0;
+    const fsMap = {0:'CTS 继续发送 (ClearToSend)', 1:'WAIT 等待', 2:'OVFLW 溢出/过长', 3:'保留'};
+    let stDesc;
+    if(st === 0) stDesc = '0x00 — 尽可能快，无间隔';
+    else if(st <= 0x7F) stDesc = '0x' + hex2(st) + ' — ' + st + ' ms';
+    else if(st >= 0xF1 && st <= 0xF9) stDesc = '0x' + hex2(st) + ' — ' + ((st - 0xF0) * 100) + ' µs';
+    else stDesc = '0x' + hex2(st) + ' — 保留值，按 127 ms 处理';
+    res.fs = fs; res.bs = bs; res.st = st;
+    res.fields = [
+      ['PCI 高 4 位', '0x3 → 流控帧 (FlowControl)'],
+      ['FS 流控状态', fsMap[fs] || ('0x' + hex2(fs) + ' 保留')],
+      ['BS 块大小', bs === 0 ? '0 — 剩余连续帧一次性发完' : bs + ' 帧后需再等 FC'],
+      ['STmin 最小间隔', stDesc]
+    ];
+    res.cells = [];
+    res.cells.push({h:hex2(bytes[0]), b:bits8(bytes[0]), r:'pci'});
+    if(n>1) res.cells.push({h:hex2(bytes[1]), b:bits8(bytes[1]), r:'bs'});
+    if(n>2) res.cells.push({h:hex2(bytes[2]), b:bits8(bytes[2]), r:'st'});
+    for(let i=3;i<n;i++) res.cells.push({h:hex2(bytes[i]), b:bits8(bytes[i]), r:'pad'});
+  }
+  else {
+    res.type = 'UK';
+    res.payload = bytes;
+    res.fields = [['PCI 高 4 位', '0x' + t.toString(16).toUpperCase() + ' — 未知帧类型']];
+    res.cells = bytes.map(b => ({h:hex2(b), b:bits8(b), r:'data'}));
+    res.warnings.push('首字节高 4 位不是 0/1/2/3，可能不是 ISO-TP 帧');
+  }
+  return res;
+}
+
+/* 跨帧重组：按 streamKey 分流，请求/响应/不同 ID 各自独立组包
+   流控帧（FC）不携带应用数据，但它属于某一条多帧报文的过程帧 —— 归到那条报文的 refs 里，
+   这样它就不必再出现在「未归入报文的帧」中，而是显示在该报文的帧明细里（带 BS / STmin）。 */
+function reassemble(frames){
+  const msgs = [];
+  const streams = new Map();
+  const open = [];              // 还在进行中的多帧（没收满声明长度），供流控帧找归属
+  const dropOpen = m => { const k = open.indexOf(m); if(k >= 0) open.splice(k, 1); };
+
+  /* 流控帧归属：先认严格成对的 ±8（多帧与流控帧总在成对的两个 ID 上、方向相反），
+     再认同址双向；29 位与自定义 ID 对不满足 ±8，最后退化为「起始时间不晚于流控帧、且最近的那条」，
+     只有一条在传时才无条件归给它。 */
+  function pickMultiForFc(f){
+    const fid = (f.id === undefined) ? null : f.id;
+    const newest = pick => {
+      let best = null;
+      for(const m of pick.list){
+        if(!pick.ok(m)) continue;
+        if(!best || (m.meta.ts || 0) > (best.meta.ts || 0)) best = m;
+      }
+      return best;
+    };
+    if(fid !== null){
+      // ① 严格 ±8（多帧与流控帧分处请求 / 响应两侧）
+      const strict = newest({list: open, ok: m => {
+        const mid = m.meta && m.meta.id;
+        return mid !== undefined && mid !== null && (mid === fid + 8 || fid === mid + 8);
+      }});
+      if(strict) return strict;
+      // ② 同址双向（网关把两个方向记在一个 ID 上）
+      const same = newest({list: open, ok: m => (m.meta && m.meta.id) === fid});
+      if(same) return same;
+    }
+    // ③ 29 位 / 自定义 ID 对：时间兜底
+    const byTs = newest({list: open, ok: m => {
+      const t = m.meta && m.meta.ts;
+      return t !== undefined && t !== null && f.ts !== undefined && f.ts !== null && t <= f.ts;
+    }});
+    return byTs || (open.length === 1 ? open[0] : null);
+  }
+
+  for(const f of frames){
+    const key = f.streamKey || 'p';
+    let st = streams.get(key);
+    if(!st){ st = {cur:null, sn:1}; streams.set(key, st); }
+    const meta = {ts:f.ts, id:f.id, ext:f.ext, rawDir:f.rawDir, fd:f.fd, side:f.side};
+
+    if(f.type === 'SF'){
+      msgs.push({kind:'single', refs:[f.idx], refTs:[f.ts], payload: f.payload.slice(), total: f.len, ok:true, meta});
+      st.cur = null;
+    } else if(f.type === 'FF'){
+      if(st.cur) dropOpen(st.cur);
+      st.cur = {kind:'multi', refs:[f.idx], refTs:[f.ts], payload: f.payload.slice(), total: f.totalLen, ok:true, notes:[], meta};
+      msgs.push(st.cur);
+      open.push(st.cur);
+      st.sn = 1;
+    } else if(f.type === 'CF'){
+      const cur = st.cur;
+      if(!cur){
+        msgs.push({kind:'orphan', refs:[f.idx], refTs:[f.ts], payload: f.payload.slice(), total:f.payload.length, ok:false,
+          notes:['连续帧前没有首帧，无法重组（可能日志被截断或 ID 配置不对）'], meta});
+        continue;
+      }
+      if(f.sn !== st.sn){
+        cur.notes.push('#' + f.idx + ' SN=' + f.sn + '，期望 ' + st.sn + '，可能丢帧');
+        cur.ok = false;
+      }
+      st.sn = (f.sn + 1) & 0x0F;
+      cur.refs.push(f.idx);
+      cur.refTs.push(f.ts);
+      cur.payload = cur.payload.concat(f.payload);
+      if(cur.payload.length >= cur.total) dropOpen(cur);   // 收满了，后面的流控帧不再属于它
+    } else if(f.type === 'FC'){
+      // 流控帧：归到它正在放行的那条多帧报文的帧明细里
+      const tgt = pickMultiForFc(f);
+      if(tgt){
+        tgt.refs.push(f.idx);
+        tgt.refTs.push(f.ts);
+        tgt.hasFc = true;
+      }
+      // 找不到归属（日志从中间开始 / 该多帧已完成）就留给「未归入报文的帧」
+    }
+  }
+  for(const m of msgs){
+    if(m.payload.length > m.total){
+      const cut = m.payload.length - m.total;
+      m.payload = m.payload.slice(0, m.total);
+      m.info = (m.info||[]).concat('已按声明长度裁掉尾部 ' + cut + ' 字节填充（连续帧补位，非错误）');
+    } else if(m.payload.length < m.total){
+      m.ok = false;
+      m.notes = (m.notes||[]).concat('重组长度 ' + m.payload.length + ' < 声明长度 ' + m.total + '，报文不完整');
+    }
+    // 帧明细按时间顺序展示（首帧 / 流控帧 / 连续帧可能交替出现）
+    if(m.hasFc && m.refTs){
+      const order = m.refs.map((r, k) => ({r, t:(m.refTs[k] === undefined || m.refTs[k] === null) ? k : m.refTs[k]}));
+      order.sort((a, b) => (a.t - b.t) || (a.r - b.r));
+      m.refs = order.map(x => x.r);
+    }
+    delete m.refTs;
+  }
+  return msgs;
+}
+
+/* =========================================================
+   UDS 报文语义解码
+   ========================================================= */
+function findService(sid){
+  return SERVICES.find(s => s.sid === sid);
+}
+function findNRC(code){
+  return NRC_LIST.find(n => n.c === code);
+}
+function findDID(v){
+  return DID_LIST.find(d => d.did === v);
+}
+function sidName(sid){
+  if(sid === 0x7F) return 'NegativeResponse';
+  if(sid >= 0x40){
+    const s = findService(sid - 0x40);
+    if(s) return s.name + ' (正响应)';
+  }
+  const s = findService(sid);
+  return s ? s.name : '未知服务';
+}
+
+function decodeUDS(p){
+  const out = {rows:[], isNeg:false, fail:false};
+  if(!p.length) return out;
+  const sid = p[0];
+
+  if(sid === 0x7F){
+    out.isNeg = true;
+    const origSid = p[1] ?? 0;
+    const nrc = p[2] ?? 0;
+    const svc = findService(origSid);
+    const nr = findNRC(nrc);
+    out.title = '负响应 NegativeResponse';
+    out.rows.push(['原请求 SID', '0x' + hex2(origSid) + ' — ' + (svc ? svc.name + ' / ' + svc.cn : '未知服务')]);
+    out.rows.push(['NRC', '0x' + hex2(nrc) + ' — ' + (nr ? nr.name : '未知/厂商自定义')]);
+    out.rows.push(['NRC 中文', nr ? nr.cn : '—']);
+    out.nrc = nr ? nr : {c:nrc, name:'unknown', cn:'未知', why:'未在标准表中定义，可能为厂商自定义 NRC', tip:'查该 ECU 的诊断规范'};
+    return out;
+  }
+
+  // 正响应
+  if(sid >= 0x40 && findService(sid - 0x40)){
+    const base = findService(sid - 0x40);
+    out.title = '正响应 ' + base.name;
+    out.rows.push(['服务', '0x' + hex2(sid) + ' = 0x' + hex2(base.sid) + ' + 0x40 — ' + base.cn]);
+    const sub = p[1];
+    if(base.subs && base.subs.length && sub !== undefined){
+      const s = base.subs.find(x => x.v === (sub & 0x7F));
+      const sup = (sub & 0x80) ? '（抑制正响应位置位）' : '';
+      out.rows.push(['子功能', '0x' + hex2(sub) + (s ? ' — ' + s.n + ' / ' + s.c : ' — 未知子功能') + sup]);
+    }
+    // 具体服务
+    if(base.sid === 0x10 && p.length >= 4){
+      const p2 = (p[2]<<8|p[3]);
+      out.rows.push(['P2', p2 + ' ms（0x' + p2.toString(16).toUpperCase() + '）']);
+      if(p.length >= 6){
+        const p2s = (p[4]<<8|p[5]) * 10;
+        out.rows.push(['P2*', p2s + ' ms（报文值 ' + (p[4]<<8|p[5]) + ' ×10）']);
+      }
+    }
+    if(base.sid === 0x22 && p.length >= 3){
+      const did = p[1]<<8 | p[2];
+      const d = findDID(did);
+      const data = p.slice(3);
+      out.rows.push(['DID', '0x' + did.toString(16).toUpperCase().padStart(4,'0') + (d ? ' — ' + d.name + ' / ' + d.cn : '')]);
+      out.rows.push(['数据长度', data.length + ' 字节']);
+      out.rows.push(['数据 (HEX)', data.map(hex2).join(' ')]);
+      const asc = asciiOf(data);
+      if(data.length >= 2 && asc.indexOf('.') === -1 && /[0-9A-Za-z]/.test(asc)) out.rows.push(['数据 (ASCII)', '"' + asc + '"']);
+      if(did === 0xF186 && data.length) out.rows.push(['会话含义', ({1:'默认会话',2:'编程会话',3:'扩展会话',4:'安全系统诊断会话'}[data[0]] || '未知')]);
+    }
+    if(base.sid === 0x27 && p.length >= 2){
+      const sub = p[1];
+      const rest = p.slice(2);
+      out.rows.push([sub % 2 === 1 ? 'Seed' : 'Key',
+        rest.length ? (rest.length + ' 字节：' + rest.map(hex2).join(' ')) : '—（无数据，仅表示确认/握手）']);
+      out.rows.push(['解锁等级', 'Level ' + Math.ceil((sub & 0x7F)/2)]);
+    }
+    if(base.sid === 0x19 && p.length >= 2){
+      const mask = p[2];
+      if(mask !== undefined) out.rows.push(['状态掩码', '0x' + hex2(mask) + ' ' + statusMaskText(mask)]);
+      const dtcs = [];
+      for(let i=3;i+3<p.length;i+=4){
+        dtcs.push(fmtDTC(p[i],p[i+1]) + ' [' + hex2(p[i+3]) + ']');
+      }
+      if(dtcs.length) out.rows.push(['DTC 列表', dtcs.join('  |  ')]);
+    }
+    if(base.sid === 0x31 && p.length >= 4){
+      const rid = (p[2] << 8) | p[3];
+      const rt = findRoutine(rid);
+      out.rows.push(['RoutineId', '0x' + hex4(rid) + (rt ? ' — ' + rt.name + ' / ' + rt.cn : ' — 未知（厂商自定义，查 CDD）')]);
+      if(p.length >= 5){
+        const st = p[4];
+        out.rows.push(['RoutineStatus', routineStatusText(st)]);
+        // SID 是正响应只说明「ECU 受理了这次例程调用」，例程自己回非 0 状态就是执行失败，
+        // 业务上和负响应一样处理：标红、计入统计、Alt+N 能跳过去
+        if(st !== 0){
+          out.fail = true;
+          out.failSt = st;
+          out.failRid = rid;
+          out.failCn = rt ? rt.cn : ('例程 0x' + hex4(rid));
+        }
+      } else {
+        out.rows.push(['RoutineStatus', '—（响应里没带状态字节；正常实现会带 1 字节 routineStatusRecord）']);
+      }
+      if(p.length > 5) out.rows.push(['附加数据', p.slice(5).map(hex2).join(' ')]);
+    }
+    if((base.sid === 0x34 || base.sid === 0x35) && p.length >= 3){
+      out.rows.push(['lengthFormatIdentifier', '0x' + hex2(p[1]) + '（高 4 位=长度字节数）']);
+      const nBytes = p[1] & 0x0F;
+      const maxBlock = p.slice(2, 2+nBytes).reduce((a,b)=>(a*256+b),0);
+      out.rows.push(['maxNumberOfBlockLength', maxBlock + ' 字节' + (nBytes===0?'（未给出，按 255 处理）':'')]);
+    }
+    if(base.sid === 0x36 && p.length >= 2){
+      out.rows.push(['blockSequenceCounter', '0x' + hex2(p[1])]);
+    }
+    if(base.sid === 0x28 && p.length >= 2){
+      out.rows.push(['通信类型', communicationTypeText(p[1])]);
+    }
+    if(p.length > 2 && ![0x10,0x11,0x22,0x27,0x19,0x31,0x34,0x35,0x36,0x28,0x37,0x3E].includes(base.sid)){
+      out.rows.push(['数据域', p.slice(1).map(hex2).join(' ')]);
+    }
+    // 标题直接写明「例程执行失败」：SID 是正响应，但例程自己报了失败
+    if(out.fail) out.title = '正响应 ' + base.name + ' · 例程执行失败';
+    return out;
+  }
+
+  // 请求
+  const svc = findService(sid);
+  if(svc){
+    out.title = '请求 ' + svc.name;
+    out.rows.push(['服务', '0x' + hex2(sid) + ' — ' + svc.name + ' / ' + svc.cn]);
+    const sub = p[1];
+    if(svc.subs && svc.subs.length && sub !== undefined && (svc.sid === 0x10 || svc.sid === 0x11 || svc.sid === 0x19 || svc.sid === 0x27 || svc.sid === 0x28 || svc.sid === 0x2F || svc.sid === 0x31 || svc.sid === 0x3E || svc.sid === 0x85 || svc.sid === 0x2A || svc.sid === 0x2C || svc.sid === 0x29)){
+      const hit = svc.subs.find(x => x.v === (sub & 0x7F));
+      const sup = (sub & 0x80) ? '（bit7=1：抑制正响应）' : '';
+      out.rows.push(['子功能', '0x' + hex2(sub) + (hit ? ' — ' + hit.n + ' / ' + hit.c : ' — 未知') + sup]);
+    }
+    if(sid === 0x22 && p.length >= 3){
+      const d1 = p[1]<<8|p[2]; const d = findDID(d1);
+      out.rows.push(['DID', '0x' + d1.toString(16).toUpperCase().padStart(4,'0') + (d ? ' — ' + d.name + ' / ' + d.cn : '')]);
+      if(p.length >= 5){
+        const d2 = p[3]<<8|p[4]; const dd = findDID(d2);
+        out.rows.push(['DID 2', '0x' + d2.toString(16).toUpperCase().padStart(4,'0') + (dd ? ' — ' + dd.cn : '')]);
+      }
+    }
+    if(sid === 0x2E && p.length >= 3){
+      const d1 = p[1]<<8|p[2]; const d = findDID(d1);
+      const data = p.slice(3);
+      out.rows.push(['DID', '0x' + d1.toString(16).toUpperCase().padStart(4,'0') + (d ? ' — ' + d.cn : '')]);
+      out.rows.push(['写入数据', data.length ? (data.length + ' 字节：' + data.map(hex2).join(' ')) : '—（无数据！ECU 通常会回 NRC 0x13 长度错误）']);
+      const asc = asciiOf(data);
+      if(data.length >= 2 && asc.indexOf('.') === -1 && /[0-9A-Za-z]/.test(asc)) out.rows.push(['写入 (ASCII)', '"' + asc + '"']);
+    }
+    if(sid === 0x31 && p.length >= 4){
+      const rid = (p[2] << 8) | p[3];
+      const rt = findRoutine(rid);
+      out.rows.push(['RoutineId', '0x' + hex4(rid) + (rt ? ' — ' + rt.name + ' / ' + rt.cn : ' — 未知（厂商自定义，查 CDD）')]);
+      if(rt) out.rows.push(['例程说明', rt.note]);
+      if(p.length > 4) out.rows.push(['例程参数', p.slice(4).map(hex2).join(' ')]);
+    }
+    if(sid === 0x27 && p.length > 2){
+      out.rows.push([(sub & 1) ? 'Seed 请求' : 'Key', p.slice(2).map(hex2).join(' ')]);
+    }
+    if(sid === 0x14 && p.length >= 4){
+      const g = (p[1]<<16|p[2]<<8|p[3]) >>> 0;
+      out.rows.push(['groupOfDTC', '0x' + g.toString(16).toUpperCase().padStart(6,'0') + (g===0xFFFFFF?' — 全部 DTC':'')]);
+    }
+    if(sid === 0x19 && p.length >= 3){
+      out.rows.push(['状态掩码', '0x' + hex2(p[2]) + ' ' + statusMaskText(p[2])]);
+      out.rows.push(['展开为 0xFF 可读全部 DTC', '19 ' + hex2(p[1]) + ' FF']);
+    }
+    if(sid === 0x28 && p.length >= 3){
+      out.rows.push(['通信类型', communicationTypeText(p[2])]);
+    }
+    if(sid === 0x36 && p.length >= 2){
+      out.rows.push(['blockSequenceCounter', '0x' + hex2(p[1]) + '（从 0x01 起，0xFF 后回 0x00）']);
+      out.rows.push(['数据长度', (p.length-2) + ' 字节']);
+    }
+    if((sid === 0x34 || sid === 0x35 || sid === 0x3D) && p.length >= 4){
+      const alfid = p[2];
+      const addrLen = (alfid >> 4) & 0x0F;
+      const sizeLen = alfid & 0x0F;
+      out.rows.push(['dataFormatIdentifier', '0x' + hex2(p[1]) + (p[1]===0?' — 无压缩无加密':'')]);
+      out.rows.push(['addressAndLengthFormatIdentifier', '0x' + hex2(alfid) + ' — 地址 ' + addrLen + ' 字节 / 长度 ' + sizeLen + ' 字节']);
+      let o = 3;
+      const addr = p.slice(o, o+addrLen).reduce((a,b)=>(a*256+b),0); o += addrLen;
+      const size = p.slice(o, o+sizeLen).reduce((a,b)=>(a*256+b),0); o += sizeLen;
+      out.rows.push(['内存地址', '0x' + addr.toString(16).toUpperCase()]);
+      out.rows.push(['数据长度', size + ' 字节 (' + (size/1024).toFixed(1) + ' KB)']);
+      if(p.length > o) out.rows.push(['附加数据', p.slice(o).map(hex2).join(' ')]);
+    }
+    if(sid === 0x3E && p.length >= 2){
+      out.rows.push(['提示', (p[1] & 0x80) ? '抑制正响应 — ECU 不会回 7E' : '正常 — ECU 回 7E ' + hex2(p[1])]);
+    }
+    return out;
+  }
+
+  out.title = '未知服务';
+  out.rows.push(['SID', '0x' + hex2(sid) + ' — 不在常用服务表中']);
+  out.rows.push(['数据', p.map(hex2).join(' ')]);
+  return out;
+}
+
+function statusMaskText(mask){
+  if(mask === 0xFF) return '(全部状态位)';
+  const parts = [];
+  DTC_BITS.forEach(b => { if(mask & (1<<b.b)) parts.push('b'+b.b+' ' + b.c); });
+  return parts.length ? '(' + parts.join(', ') + ')' : '(无状态位)';
+}
+function communicationTypeText(v){
+  const m = {0x01:'normal 正常通信', 0x02:'networkManagement 网络管理', 0x03:'normalAndNetworkManagement 正常+网络管理'};
+  return '0x' + hex2(v) + ' — ' + (m[v] || '未知');
+}
+function fmtDTC(b0,b1){
+  const letter = ['P','C','B','U'][b0 >> 6];
+  const d1 = (b0 >> 4) & 0x03;
+  const d2 = b0 & 0x0F;
+  return letter + d1 + d2.toString(16).toUpperCase() + hex2(b1);
+}
+
+/* =========================================================
+   渲染：解析页
+   ========================================================= */
+/* 报文列表分段：一次铺多少条。
+   实测（Chrome，20 字节多帧报文）：953 条 ≈ 45ms、2000 条 ≈ 82ms、4000 条 ≈ 131ms。
+   所以 1000 条以内直接全量铺完，不给翻段条——用户要看得见全部报文。
+   超过 1000 条才分段（每段 1000 条），免得几万条的超长日志把标签页拖死。
+   一张报表卡要生成字节格、解析表和帧明细开关，这就是原来一刀切 400 条的代价。 */
+const MSG_PAGE = 1000;
+/* 帧明细一批铺多少帧，剩下的点「加载更多」追加（一条 100+ CF 的长报文也扛得住） */
+const FD_CHUNK = 200;
+
+let FILE_FRAMES = null;
+let FILE_INFO = null;
+/* 帧号 -> 帧对象，供「帧明细」开关按需渲染 */
+let FRAME_MAP = new Map();
+/* NRC 跳转游标（每次重新解析归零） */
+let NRC_CURSOR = 0;
+/* 分段渲染状态：全部报文 + 配对结果 + 当前段首条的全局索引 */
+let MSG_ALL = [];
+let MSG_PAIRED = {pairs: new Map()};
+let MSG_START = 0;
+/* 负响应 + 例程执行失败的全局索引：NRC 跳转要能跨段，不能只数当前 DOM 里的 .msg.neg */
+let FAIL_IDX = [];
+/* ID 面板折叠状态：重新渲染后保持用户上次的选择 */
+let IDPANEL_OPEN = false;
+/* 当前渲染用的「响应 ID」配置，判断帧方向时用（null 表示没配） */
+let RESP_ID = null;
+/* 最近一次渲染用的物理 / 功能 / 响应 ID：报文头的 ID 药丸按它上色，不用每条报文都去读一遍输入框 */
+let IDCFG = null;
+/* 本次渲染一共配到了几组对话，决定要不要给没应答的请求打「无应答」标记 */
+let PAIR_ACTIVE = 0;
+/* 正在拖拽的 ID（dragover 阶段读不到 dataTransfer 的内容，只能自己记一份） */
+let DRAG_HEX = null;
+
+function getIdCfg(){
+  return {
+    phys: parseIdStr(document.getElementById('id-phys').value),
+    func: parseIdStr(document.getElementById('id-func').value),
+    resp: parseIdStr(document.getElementById('id-resp').value),
+    enabled: document.getElementById('id-enable').checked
+  };
+}
+
+function renderDecode(){
+  const box = document.getElementById('in-box');
+  const out = document.getElementById('out-area');
+  const mode = document.querySelector('#mode-switch button.on').dataset.mode;
+  const stat = document.getElementById('in-stat');
+
+  resetMsgWindowState();   // 先清掉上一轮的分段状态，空结果/单条原始报文都不会留着旧游标
+  if(mode === 'file'){
+    if(!FILE_FRAMES || !FILE_FRAMES.length){
+      out.innerHTML = emptyBox('尚未导入日志文件<br><span style="font-size:12px">支持 .asc / .blf / .trc，含 CAN FD</span>');
+      stat.textContent = '';
+      return;
+    }
+    renderFromList(FILE_FRAMES, {filter:true});
+    return;
+  }
+
+  const lines = box.value.split(/\r?\n/);
+  const errors = [];
+
+  if(mode === 'raw'){
+    let all = [];
+    lines.forEach((ln, i) => {
+      if(!ln.trim()) return;
+      const r = parseBytes(ln);
+      if(r.error) errors.push('第 ' + (i+1) + ' 行：' + r.error);
+      else all = all.concat(r.bytes);
+    });
+    if(!all.length){
+      out.innerHTML = emptyBox('没有解析到有效字节');
+      stat.textContent = '';
+      return;
+    }
+    const msg = {kind:'raw', refs:[], payload: all, total: all.length, ok:true, notes:[]};
+    out.innerHTML = renderMessage(msg, 1, mode);
+    stat.textContent = all.length + ' 字节';
+    return;
+  }
+
+  const list = [];
+  lines.forEach((ln, i) => {
+    if(!ln.trim()) return;
+    const r = parseBytes(ln);
+    if(r.error){ errors.push('第 ' + (i+1) + ' 行：' + r.error); return; }
+    if(!r.bytes.length) return;
+    list.push({data:r.bytes, id:r.id, ext:r.ext});
+  });
+
+  if(!list.length){
+    out.innerHTML = emptyBox('没有解析到有效帧' + (errors.length ? '<br><span style="color:var(--warn)">' + errors.map(esc).join('<br>') + '</span>' : ''));
+    stat.textContent = '';
+    return;
+  }
+  renderFromList(list, {filter:true, errors});
+}
+
+/* 统一入口：list 为归一化帧 {ts,id,ext,rawDir,fd,data[]} */
+function renderFromList(list, opts){
+  const out = document.getElementById('out-area');
+  const stat = document.getElementById('in-stat');
+  const cfg = getIdCfg();
+  IDCFG = cfg;                 // 报文头 ID 药丸按这份配置上色（物理/功能=绿、响应=蓝）
+  const hasIds = list.some(f => f.id !== undefined && f.id !== null);
+  const useFilter = !!opts.filter && cfg.enabled && hasIds;
+
+  const hist = new Map();
+  for(const f of list){
+    if(f.id === undefined || f.id === null) continue;
+    hist.set(f.id, (hist.get(f.id) || 0) + 1);
+  }
+
+  const used = useFilter
+    ? list.filter(f => f.id === cfg.phys || f.id === cfg.func || f.id === cfg.resp)
+    : list;
+
+  const frames = [];
+  for(const f of used){
+    const a = analyzeFrame(f.data, frames.length + 1);
+    if(!a) continue;
+    a.ts = f.ts; a.id = f.id; a.ext = f.ext; a.ch = f.ch; a.rawDir = f.rawDir;
+    a.fd = !!f.fd || (f.data && f.data.length > 8);
+    a.side = (f.id !== undefined && f.id !== null && f.id === cfg.resp) ? 'r' : 'q';
+    a.streamKey = (f.id === undefined || f.id === null) ? 'p' : (f.id + '|' + a.side);
+    frames.push(a);
+  }
+
+  if(!frames.length){
+    stat.textContent = '';
+    // ID 列表放最上面：一条都没解析出来时，它才是唯一能下手的地方
+    out.innerHTML = renderIdHist(hist, cfg, {filterOn: useFilter})
+      + emptyBox('没有可解析的帧'
+      + (useFilter ? '<br><span style="font-size:12px">当前 ID 过滤条件下没有命中任何帧，展开上面的 ID 列表点选实际 ID，或调整配置</span>' : ''));
+    return;
+  }
+
+  stat.textContent = frames.length + ' 帧';
+  const msgs = reassemble(frames);
+  renderResults(frames, msgs, {list, used: frames.length, hist, cfg, useFilter, errors: opts.errors});
+}
+
+/* SID 是否属于「响应」区间：0x7F 负响应；0x40~0x7F 正响应；>=0xC0 是 0x83~0x87 的正响应 */
+function sidIsResp(s){
+  return (s === 0x7F) || (s >= 0x40 && s < 0x80) || (s >= 0xC0);
+}
+/* 子功能 bit7 = 抑制正响应：这类请求本来就该没回应，别标成「无应答」
+   只对确实带子功能的服务判断，否则 0x22 的 DID 高位会被误当成抑制位 */
+function rspSuppressed(p){
+  const SUB_SIDS = [0x10, 0x11, 0x19, 0x27, 0x28, 0x31, 0x3E, 0x83, 0x84, 0x85, 0x86, 0x87];
+  if(!p || p.length < 2) return false;
+  return SUB_SIDS.indexOf(p[0]) >= 0 && (p[1] & 0x80) !== 0;
+}
+/* 该帧方向：请求（测试仪→ECU）还是响应（ECU→测试仪） */
+function msgIsResp(m){
+  const mt = m.meta || {};
+  const p = m.payload || [];
+  if(!p.length) return false;
+  if(RESP_ID !== null && mt.id !== undefined && mt.id !== null && mt.id === RESP_ID) return true;
+  if(mt.side === 'r') return true;
+  return sidIsResp(p[0]);
+}
+
+/* ---- 请求 / 响应配对 ----
+   一次真正的「问答」必须同时满足两个条件，缺一不可：
+   ① ID 关系 —— 响应来自对应的那台 ECU
+        · 物理寻址：响应 ID = 请求 ID + 8（7E0 → 7E8 的通行约定）
+        · 也认用户填的「响应 ID」（29 位 18DA10F1 → 18DAF110 这类不成 +8 的寻址对）
+        · 同一 ID 上双向收发（部分网关 / 记录方式把两个方向记在一个 ID 上）
+        · 功能寻址（0x7DF 或配置的功能 ID）：任何 ECU 都能用自己的 ID 应答，可以有多条
+   ② SID 关系 —— 响应首字节 = 请求首字节 + 0x40；负响应固定 0x7F，第 2 字节回带原始 SID
+   两条同时成立才算同一组「对话 N」。只有 ID 对得上、或只有 SID 对得上的，一律不算。 */
+function pairMessages(msgs, cfg){
+  cfg = cfg || {};
+  const CFG_FUNC = (cfg.func === undefined) ? null : cfg.func;
+  const CFG_RESP = (cfg.resp === undefined) ? null : cfg.resp;
+  const FUNC_IDS = [0x7DF];
+  if(CFG_FUNC !== null && FUNC_IDS.indexOf(CFG_FUNC) < 0) FUNC_IDS.push(CFG_FUNC);
+  const isFuncId = id => (id === null || id === undefined) ? false : FUNC_IDS.indexOf(id) >= 0;
+
+  const pairs = new Map();      // msgs 下标 -> {seq, partner, role, n, why, reqId, resIds}
+  const byReqId = new Map();    // 请求 ID -> 收到过响应的响应 ID 列表
+  const miss = new Map();       // 「SID 对得上、ID 不成对」的近似命中，给界面提示用
+  const pend = [];              // 待应答的请求队列
+  let seq = 0;
+
+  /* ① ID 关系：命中返回规则名，不成立返回 null */
+  function idRel(q, rid){
+    if(isFuncId(q.id)) return '功能寻址';
+    if(q.id === null || q.id === undefined || rid === null || rid === undefined) return '无 ID';
+    if(rid === q.id + 8) return 'ID+8';
+    if(rid === q.id) return '同址双向';
+    if(CFG_RESP !== null && rid === CFG_RESP) return '配置的响应 ID';
+    return null;
+  }
+  /* ② SID 关系：命中返回规则名，不成立返回 null */
+  function sidRel(q, p){
+    if(q.sid === null || q.sid === undefined) return null;
+    const sid = p[0];
+    if(sid === 0x7F){
+      const orig = (p.length > 1) ? p[1] : null;
+      if(orig !== q.sid) return null;
+      return (p[2] === 0x78) ? '0x7F/0x78 挂起' : '0x7F 回带 SID';
+    }
+    return (sid === ((q.sid + 0x40) & 0xFF)) ? '首字节+0x40' : null;
+  }
+
+  msgs.forEach((m, i) => {
+    const p = m.payload || [];
+    if(!p.length) return;
+    const mt = m.meta || {};
+    const id = (mt.id === undefined) ? null : mt.id;
+    // 方向以 SID 为准：请求 0x10~0x3E / 0x83~0x87，响应 0x40~0x7F / >=0xC0 / 0x7F。
+    // 不能按「ID == 响应 ID」判方向 —— 收发共用一个 ID 的记录方式会把请求也判成响应。
+    const looksResp = sidIsResp(p[0]);
+
+    if(looksResp){
+      let k = -1, why = '';
+      // 从最近的请求往前找：连续两条请求各自都有应答时，不会被后一条抢走前一条的响应
+      for(let j = pend.length - 1; j >= 0; j--){
+        const q = pend[j];
+        const w1 = idRel(q, id);
+        if(!w1) continue;
+        const w2 = sidRel(q, p);
+        if(!w2) continue;
+        k = j; why = w1 + ' + ' + w2; break;
+      }
+      if(k >= 0){
+        const q = pend[k];
+        // NRC 0x78 = requestCorrectlyReceived-ResponsePending：ECU 说「收到，还要时间」，
+        // 这只是应答过程中的一句「稍等」，后面还会来真正的响应（可能连续好几个 0x78）。
+        // 所以这一组对话还没结束，请求要留在队列里继续等，且允许一对多。
+        const pending = (p[0] === 0x7F && p[2] === 0x78);
+        const prev = pairs.get(q.i);
+        if(prev){                             // 功能寻址多 ECU / 0x78 挂起后继续应答：同一组对话继续挂应答
+          prev.n++;
+          if(id !== null && prev.resIds.indexOf(id) < 0) prev.resIds.push(id);
+          pairs.set(i, {seq: prev.seq, partner: q.i + 1, role: 'res', n: 1, why, reqId: q.id, resIds: [id]});
+        } else {
+          seq++;
+          pairs.set(q.i, {seq, partner: i + 1, role: 'req', n: 1, why, reqId: q.id, resIds: [id]});
+          pairs.set(i, {seq, partner: q.i + 1, role: 'res', n: 1, why, reqId: q.id, resIds: [id]});
+        }
+        if(q.id !== null && id !== null){
+          if(!byReqId.has(q.id)) byReqId.set(q.id, []);
+          const arr = byReqId.get(q.id);
+          if(arr.indexOf(id) < 0) arr.push(id);
+        }
+        // 物理请求一问一答；功能请求留着等其余 ECU；NRC 0x78 挂起时也留着等真正的响应
+        if(!q.func && !pending) pend.splice(k, 1);
+        return;
+      }
+      // 没配上：记一笔「SID 差 0x40 对得上、ID 却不成对」的近似命中
+      // 29 位 18DA10F1→18DAF110、厂商自定义 ID 对都长这样，是配不上对最常见的原因
+      for(let j = 0; j < pend.length; j++){
+        const q = pend[j];
+        if(q.id === null || q.id === undefined || id === null || id === undefined) continue;
+        if(idRel(q, id) || !sidRel(q, p)) continue;
+        const key = q.id + '>' + id;
+        if(!miss.has(key)) miss.set(key, {qId: q.id, rId: id, qSid: q.sid, rSid: p[0], n: 0});
+        miss.get(key).n++;
+      }
+      return;   // 像响应却找不到对应请求：不进待应答队列，免得反过来被别的帧当成请求配上
+    }
+    // 请求（或方向不明的帧）：排队等应答
+    pend.push({i, id, sid: p[0], func: isFuncId(id)});
+    if(pend.length > 64) pend.shift();
+  });
+
+  // 应答条数在配对时就已累加（0x78 挂起 + 最终响应算两条，同一 ID 也只算一次展示）
+  return {pairs, byReqId, miss: [...miss.values()].sort((a, b) => b.n - a.n)};
+}
+
+/* 跳到某条报文并闪一下（配对跳转用）。目标不在当前段里就先翻到那一页。 */
+function jumpToMessage(no){
+  const out = document.getElementById('out-area');
+  if(!out) return false;
+  const i0 = Number(no) - 1;
+  if(!(i0 >= 0) || i0 >= MSG_ALL.length) return false;
+  const pos = msgWindow(MSG_ALL.length, MSG_START, MSG_PAGE);
+  if(i0 < pos.start || i0 >= pos.end){
+    MSG_START = i0;              // msgWindow 会把它对齐到段首
+    renderMsgWindow(false);
+  }
+  const el = out.querySelector('.msg[data-mi="' + i0 + '"]');
+  if(!el) return false;
+  out.querySelectorAll('.pair-hit').forEach(x => x.classList.remove('pair-hit'));
+  el.classList.add('pair-hit');
+  const startY = window.pageYOffset || 0;
+  const rect = el.getBoundingClientRect();
+  const target = Math.max(0, rect.top + startY - Math.max(0, (window.innerHeight - rect.height) / 2));
+  try { window.scrollTo({top: target, behavior:'smooth'}); }
+  catch(e){ window.scrollTo(0, target); }
+  setTimeout(() => {
+    const now = window.pageYOffset || 0;
+    if(Math.abs(now - startY) < 2 && Math.abs(now - target) > 24) window.scrollTo(0, target);
+  }, 320);
+  return true;
+}
+
+/* 顶部状态栏：帧数统计 + NRC 快速跳转合成一条。
+   没有 NRC 时只是一条中性的统计条；检测到 NRC 时整条边框转红，并长出跳转按钮与位置计数。 */
+function renderStatBar(ctx, msgN, negN, failN){
+  failN = failN || 0;
+  const filtered = !!ctx.useFilter && ctx.list.length !== ctx.used;
+  let txt = '日志共 <b>' + ctx.list.length + '</b> 帧';
+  if(filtered) txt += ' → 命中配置 ID <b class="sb-hit">' + ctx.used + '</b> 帧';
+  txt += ' → 重组 <b>' + msgN + '</b> 条 UDS 报文';
+  if(negN || failN){
+    const parts = [];
+    if(negN) parts.push('<b class="sb-neg">' + negN + '</b> 条负响应');
+    if(failN) parts.push('<b class="sb-fail">' + failN + '</b> 条例程执行失败');
+    txt += '，其中 ' + parts.join('、');
+  }
+
+  // 例程失败也进同一条红框：SID 是 0x71，但例程自己报了失败
+  const bad = negN + failN;
+  let h = '<div class="statbar' + (bad ? ' has-nrc' : '') + '">'
+        + '<span class="sb-txt">' + txt + '</span>';
+  if(bad){
+    const say = [];
+    if(negN) say.push('检测到 <b>' + negN + '</b> 条负响应 (NRC)');
+    if(failN) say.push('<b>' + failN + '</b> 条例程执行失败 (71 … 非 00)');
+    h += '<span class="sb-nrc">' + say.join(' · ') + '</span>'
+       + '<button class="nrcbtn" type="button" data-jump="nrc" title="跳到下一条负响应 / 例程失败报文（Alt+N）">跳到下一条 <span class="k">Alt+N</span></button>'
+       + '<span class="nrcpos" id="nrc-pos">0 / ' + bad + '</span>';
+  }
+  return h + '</div>';
+}
+
+/* ---- 配对连线 ----
+   报文列表左侧留一条通道，把「请求框」和它的「响应框」用一条折线连起来：
+   从请求卡片左边缘水平出去，沿通道竖直走，再水平回到响应卡片左边缘。
+   多条对话交错时按区间贪心分配车道（lane），竖线才不会叠在一起。 */
+
+/* 纯几何：给一组 {top,bottom} 算出落笔路径，方便单独验证
+   indent：卡片左边缘到第一条车道的水平引出长度，要留够圆角 + 一小段直线 */
+function pairLinkPaths(items, opt){
+  const o = Object.assign({gutter:56, laneGap:9, indent:16, maxLane:5, radius:6}, opt || {});
+  const edge = o.gutter - 1;              // 线端离卡片边框 1px，避免压住 3px 的蓝/绿左边条
+
+  // 按「一次问答」聚合车道：同一 pair 的多条响应（0x78 挂起）竖线段直接重合，
+  // 不再各占一条道。否则响应一多通道就得加宽，报文卡片的可用宽度跟着被压。
+  const byKey = new Map();
+  const groups = [];
+  const owner = new Map();
+  items.forEach((it, i) => {
+    const k = (it.pair === undefined || it.pair === null) ? ('#' + i) : String(it.pair);
+    const t = Math.min(it.top, it.bottom), b = Math.max(it.top, it.bottom);
+    let g = byKey.get(k);
+    if(!g){ g = {key: k, top: t, bottom: b, lane: -1}; byKey.set(k, g); groups.push(g); }
+    else { g.top = Math.min(g.top, t); g.bottom = Math.max(g.bottom, b); }
+    owner.set(it, g);
+  });
+
+  // 组之间再用区间贪心分道：只有真正交叠的两场对话才需要并排
+  const laneEnd = [];
+  groups.slice().sort((a, b) => a.top - b.top).forEach(g => {
+    let lane = -1;
+    for(let i = 0; i < laneEnd.length; i++){
+      // +2 的容差：上一段正好在这张卡片处收尾时允许共用车道，
+      // 否则一问一答交替出现时每段都错开一条道，竖线呈阶梯状很难看
+      if(laneEnd[i] < g.top + 2){ lane = i; break; }
+    }
+    if(lane < 0) lane = laneEnd.length;
+    laneEnd[lane] = Math.max(g.bottom, laneEnd[lane] || g.bottom);
+    g.lane = lane;
+  });
+
+  const rows = items.slice().sort((a, b) =>
+    Math.min(a.top, a.bottom) - Math.min(b.top, b.bottom));
+  rows.forEach(it => {
+    const top = Math.min(it.top, it.bottom);
+    const bottom = Math.max(it.top, it.bottom);
+    const g = owner.get(it);
+    const vis = Math.min(g ? g.lane : 0, Math.max(0, o.maxLane - 1));
+    const x = Math.max(4, edge - o.indent - o.laneGap * vis);
+    const lead = edge - x;                // 这段水平线要同时容纳两个圆角
+    const r = Math.max(1, Math.min(o.radius, (bottom - top) / 2, lead / 2));
+    it.lane = vis;
+    it.x = x;
+    it.dotX = edge - 5;                   // 端点圆点落在水平引出段上，不碰边框
+    it.path = 'M' + edge + ',' + top
+      + 'H' + (x + r) + 'Q' + x + ',' + top + ' ' + x + ',' + (top + r)
+      + 'V' + (bottom - r) + 'Q' + x + ',' + bottom + ' ' + (x + r) + ',' + bottom
+      // 收尾必须用 L（吃 x,y 两个参数）。H 只吃一个 x，写成 H55,340.5 会
+      // 被当成「H55」+ 隐式重复的「H340.5」，凭空多画一条横穿卡片的长线。
+      + 'L' + edge + ',' + bottom;
+  });
+  return rows;
+}
+
+let PL_TIMER = 0;
+let PL_SIG = '';        // 上一次画线时的卡片几何指纹，用来判断要不要重画
+let PL_RO = null;       // 观察 #msg-list 尺寸，字体/换行晚到导致的高度变化能补画一次
+
+function pairLinkSig(cards){
+  return cards.map(c => c.offsetTop + ':' + c.offsetHeight).join('|');
+}
+
+function schedulePairLinks(){
+  if(PL_TIMER) return;
+  PL_TIMER = setTimeout(() => {
+    PL_TIMER = 0;
+    drawPairLinks();
+    // 解析完这一刻字体/换行可能还没稳定，隔一拍按指纹再核一次
+    setTimeout(() => { if(pairLinkStale()) drawPairLinks(); }, 240);
+  }, 50);
+}
+
+function pairLinkStale(){
+  const list = document.getElementById('msg-list');
+  if(!list || typeof list.querySelectorAll !== 'function') return false;
+  const cards = [].slice.call(list.querySelectorAll('.msg[data-pair]'));
+  return cards.length > 1 && pairLinkSig(cards) !== PL_SIG;
+}
+
+function drawPairLinks(){
+  const list = document.getElementById('msg-list');
+  if(!list || typeof list.querySelectorAll !== 'function') return;
+  const old = (typeof list.querySelector === 'function') ? list.querySelector('.pl-svg') : null;
+  const drop = () => { if(old && old.remove) old.remove(); };
+
+  const cards = [].slice.call(list.querySelectorAll('.msg[data-pair]'));
+  if(cards.length < 2){ drop(); PL_SIG = ''; return; }
+  if(typeof document.createElementNS !== 'function') return;
+
+  // 指纹相同就不要重画，否则每次 resize 都会闪一下
+  const sig = pairLinkSig(cards);
+  if(old && sig === PL_SIG) return;
+  drop();
+  PL_SIG = sig;
+
+  // 列表本身的高度变化（展开帧明细、字体回来）也要能补画
+  if(PL_RO && PL_RO.observe) { try { PL_RO.observe(list); } catch(e){} }
+
+  // 按「对话 N」分组：一组里恰好一个请求，可能有多个响应（0x78 挂起会一对多）
+  const groups = new Map();
+  cards.forEach(c => {
+    const k = c.dataset ? c.dataset.pair : null;
+    if(k === null || k === undefined) return;
+    if(!groups.has(k)) groups.set(k, {req: null, res: []});
+    const g = groups.get(k);
+    if(c.classList && c.classList.contains('pc-req')) g.req = c;
+    else g.res.push(c);
+  });
+
+  const center = el => {
+    const t = el.offsetTop, h = el.offsetHeight;
+    return (typeof t === 'number' && typeof h === 'number') ? t + h / 2 : NaN;
+  };
+
+  const items = [];
+  groups.forEach((g, k) => {
+    if(!g.req) return;
+    const qy = center(g.req);
+    if(!isFinite(qy)) return;
+    g.res.forEach(r => {
+      const ry = center(r);
+      if(!isFinite(ry)) return;
+      items.push({pair: k, top: qy, bottom: ry, qIsTop: qy <= ry});
+    });
+  });
+  if(!items.length) return;
+
+  let gutter = 56;
+  try {
+    if(typeof getComputedStyle === 'function'){
+      const pl = parseFloat(getComputedStyle(list).paddingLeft);
+      if(isFinite(pl) && pl > 0) gutter = pl;
+    }
+  } catch(e){}
+
+  const wide = gutter > 50;
+  const rows = pairLinkPaths(items, {
+    gutter: gutter,
+    laneGap: wide ? 9 : 8,
+    indent: wide ? 16 : 14,
+    radius: 6
+  });
+  const height = Math.max(list.offsetHeight || 0, list.scrollHeight || 0);
+  if(!height) return;
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'pl-svg');
+  svg.setAttribute('width', String(gutter));
+  svg.setAttribute('height', String(height));
+  svg.setAttribute('aria-hidden', 'true');
+
+  rows.forEach(it => {
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'pl-g');
+    g.setAttribute('data-pair', it.pair);
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('class', 'pl-line');
+    p.setAttribute('d', it.path);
+    g.appendChild(p);
+    // 两端各点一个圆点，落在水平引出段上（不再压在卡片左边条上）
+    [[it.top, it.qIsTop], [it.bottom, !it.qIsTop]].forEach(pair => {
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('class', 'pl-dot ' + (pair[1] ? 'req' : 'res'));
+      c.setAttribute('cx', String(it.dotX));
+      c.setAttribute('cy', String(pair[0]));
+      c.setAttribute('r', '2.6');
+      g.appendChild(c);
+    });
+    svg.appendChild(g);
+  });
+
+  list.insertBefore(svg, list.firstChild);
+}
+
+/* =========================================================
+   报文列表分段
+   ========================================================= */
+/* 算当前段覆盖的区间。start 一律对齐到段边界，
+   免得出现「第 37–236 条」这种半截段，翻页时也对不上号。 */
+function msgWindow(total, start, size){
+  size = size || MSG_PAGE;
+  if(!(total > 0)) return {start: 0, end: 0, total: 0};
+  const last = Math.floor((total - 1) / size) * size;
+  let s = Math.floor((Number(start) || 0) / size) * size;
+  if(!isFinite(s) || s < 0) s = 0;
+  if(s > last) s = last;
+  return {start: s, end: Math.min(total, s + size), total: total};
+}
+
+/* 分段条。首段顶部不出条（上面没东西可翻），只有一段时整条都不出 */
+function msgPagerHtml(pos, where){
+  if(!pos || pos.total <= MSG_PAGE) return '';
+  if(where === 'top' && pos.start <= 0) return '';
+  const segN = Math.ceil(pos.total / MSG_PAGE);
+  const segI = Math.floor(pos.start / MSG_PAGE) + 1;
+  const prev = pos.start > 0;
+  const next = pos.end < pos.total;
+  return '<div class="pager pager-' + where + '">'
+    + '<button class="pager-btn" type="button" data-page="prev"' + (prev ? '' : ' disabled')
+    + ' title="回到前一段报文"><span class="ar">↑</span>上一段</button>'
+    + '<span class="pager-txt">第 <b>' + (pos.start + 1) + '</b>–<b>' + pos.end + '</b> 条 / 共 <b>'
+    + pos.total + '</b> 条 · 第 ' + segI + '/' + segN + ' 段</span>'
+    + '<button class="pager-btn" type="button" data-page="next"' + (next ? '' : ' disabled')
+    + ' title="继续看下一段报文">下一段<span class="ar">↓</span></button>'
+    + '</div>';
+}
+
+/* 当前段的 HTML：段首条（有上一段时）+ 报文列表 + 段尾条 */
+function msgWindowHtml(){
+  const pos = msgWindow(MSG_ALL.length, MSG_START, MSG_PAGE);
+  MSG_START = pos.start;
+  let h = msgPagerHtml(pos, 'top');
+  h += '<div class="msg-list" id="msg-list">';
+  // 序号必须用全局索引：分段后 i+1 就变成段内序号了，配对关系也对不上
+  for(let i = pos.start; i < pos.end; i++){
+    h += renderMessage(MSG_ALL[i], i + 1, 'isotp', MSG_PAIRED.pairs.get(i));
+  }
+  h += '</div>';
+  h += msgPagerHtml(pos, 'bot');
+  return h;
+}
+
+/* 只换报文本体：统计条、ID 列表、配对提示都不动，翻段时页面不闪、折叠状态不丢 */
+function renderMsgWindow(scrollToTop){
+  const box = document.getElementById('msg-wrap');
+  if(!box) return;
+  box.innerHTML = msgWindowHtml();
+  PL_SIG = '';             // 内容换了，旧几何指纹作废，连线必须重画
+  schedulePairLinks();
+  if(!scrollToTop) return;
+  try {
+    const rect = box.getBoundingClientRect ? box.getBoundingClientRect() : {top: 0};
+    const y = Math.max(0, (window.pageYOffset || 0) + rect.top - 70);   // 别让吸顶统计条压住段首
+    window.scrollTo(0, y);
+  } catch(e){}
+}
+
+/* 换解析结果时把分段状态清干净（单条原始报文 / 空结果这些不走分段） */
+function resetMsgWindowState(){
+  MSG_ALL = [];
+  MSG_PAIRED = {pairs: new Map()};
+  MSG_START = 0;
+  FAIL_IDX = [];
+}
+
+function renderResults(frames, msgs, ctx){
+  const out = document.getElementById('out-area');
+  let html = '';
+
+  if(ctx.errors && ctx.errors.length){
+    html += '<div class="panel" style="margin-bottom:14px"><div class="panel-bd" style="color:var(--warn); font-size:12.5px; line-height:1.9">'
+         + ctx.errors.slice(0, 20).map(esc).join('<br>')
+         + (ctx.errors.length > 20 ? '<br>… 其余 ' + (ctx.errors.length-20) + ' 条略' : '') + '</div></div>';
+  }
+
+  // 帧数统计与 NRC 跳转合成一条，放在最上面（sticky 吸附）
+  // 例程失败（71 xx RID 非 0 状态）单独计数，但和负响应一起进跳转清单
+  let negN = 0, failN = 0;
+  FAIL_IDX = [];
+  for(let i = 0; i < msgs.length; i++){
+    const pl = msgs[i].payload;
+    if(!pl || !pl.length) continue;
+    if(pl[0] === 0x7F){ negN++; FAIL_IDX.push(i); }
+    else if(isRoutineFail(pl)){ failN++; FAIL_IDX.push(i); }
+  }
+  html += renderStatBar(ctx, msgs.length, negN, failN);
+
+  FRAME_MAP = new Map();
+  for(const f of frames) FRAME_MAP.set(f.idx, f);
+
+  // 请求 / 响应配对：同一组对话在卡片上共用一个颜色与序号
+  RESP_ID = (ctx.cfg && ctx.cfg.resp !== undefined) ? ctx.cfg.resp : null;
+  const paired = pairMessages(msgs, ctx.cfg);
+  PAIR_ACTIVE = 0;
+  for(const v of paired.pairs.values()) if(v.role === 'req') PAIR_ACTIVE++;
+
+  // 日志 / 输入里检测到的 CAN ID：默认折叠，展开后可拖到左侧填入物理/功能/响应 ID
+  html += renderIdHist(ctx.hist, ctx.cfg, {filterOn: ctx.useFilter, pairs: paired.byReqId});
+
+  // SID 明明对得上、ID 却不成对：直接给一键修正，省得自己猜「响应 ID」该填什么
+  html += renderPairHint(paired.miss, ctx.cfg);
+
+  // 报文列表只铺当前段，段首/段尾各挂一个翻段条；条数不设上限，一条都不会被吞掉
+  stampDelta(msgs);
+  MSG_ALL = msgs;
+  MSG_PAIRED = paired;
+  MSG_START = 0;
+  html += '<div id="msg-wrap">' + msgWindowHtml() + '</div>';
+
+  // 没被任何报文引用的帧（流控帧、非 ISO-TP 帧等）才单独列出
+  const usedRefs = new Set();
+  msgs.forEach(m => (m.refs || []).forEach(r => usedRefs.add(r)));
+  const lone = frames.filter(f => !usedRefs.has(f.idx));
+  if(lone.length){
+    html += '<div class="panel" style="margin-bottom:14px"><div class="panel-hd"><b>未归入报文的帧</b>'
+          + '<span class="count">' + lone.length + ' 帧</span></div><div class="panel-bd">'
+          + '<div class="idnote" style="margin:0">非 ISO-TP 帧、孤立连续帧，以及找不到归属的流控帧（日志从中间开始或该多帧已收满）。'
+          + '能对上多帧报文的流控帧已经归到对应报文的帧明细里了。</div>'
+          + frameToggleHtml(lone.map(f => f.idx), lone.length)
+          + '</div></div>';
+  }
+
+  out.innerHTML = html;
+  NRC_CURSOR = 0;
+  schedulePairLinks();
+}
+
+/* 跳到下一条负响应 / 例程失败报文：循环滚动并高亮。
+   目标可能落在别的分段里，所以要按全局索引判断，必要时先翻段再定位。 */
+function jumpNrc(){
+  const out = document.getElementById('out-area');
+  if(!out || !FAIL_IDX.length) return false;
+  const k = NRC_CURSOR % FAIL_IDX.length;
+  NRC_CURSOR = k + 1;
+  const gi = FAIL_IDX[k];
+
+  const pos = msgWindow(MSG_ALL.length, MSG_START, MSG_PAGE);
+  if(gi < pos.start || gi >= pos.end){
+    MSG_START = gi;              // 对齐到目标所在段，再去找卡片
+    renderMsgWindow(false);
+  }
+  const el = out.querySelector('.msg[data-mi="' + gi + '"]');
+  if(!el) return false;
+  out.querySelectorAll('.msg.neg, .msg.fail').forEach(x => x.classList.remove('nrc-hit'));
+  el.classList.add('nrc-hit');
+
+  // 把目标卡片滚到视口中间（上方留出吸附条的余量）
+  const startY = window.pageYOffset || 0;
+  const rect = el.getBoundingClientRect();
+  const target = Math.max(0, rect.top + startY - Math.max(0, (window.innerHeight - rect.height) / 2));
+  try { window.scrollTo({top: target, behavior:'smooth'}); }
+  catch(e){ window.scrollTo(0, target); }
+  // 平滑滚动被系统/浏览器禁用时兜底（用户自己滚动过就不再干预）
+  setTimeout(() => {
+    const now = window.pageYOffset || 0;
+    if(Math.abs(now - startY) < 2 && Math.abs(now - target) > 24) window.scrollTo(0, target);
+  }, 320);
+  const posEl = document.getElementById('nrc-pos');
+  if(posEl) posEl.textContent = (k + 1) + ' / ' + FAIL_IDX.length;
+  return true;
+}
+
+/* 「SID 对得上、ID 不成对」的提示条：一键把这对 ID 设成物理 / 响应 ID */
+function renderPairHint(miss, cfg){
+  if(!miss || !miss.length) return '';
+  const H = n => '0x' + n.toString(16).toUpperCase();
+  cfg = cfg || {};
+  // 已经填在槽位里的组合不再提示
+  const done = x => (cfg.phys === x.qId && cfg.resp === x.rId);
+  const list = miss.filter(x => !done(x));
+  if(!list.length) return '';
+  const rows = list.slice(0, 3).map(x => {
+    const qh = x.qId.toString(16).toUpperCase();
+    const rh = x.rId.toString(16).toUpperCase();
+    return '<div class="phrow">'
+      + '<span class="phid">' + H(x.qId) + ' → ' + H(x.rId) + '</span>'
+      + '<span class="phwhy">' + x.n + ' 次 · SID 0x' + hex2(x.qSid) + ' → 0x' + hex2(x.rSid)
+      + ' 正好差 0x40，但两者不构成 +8 关系</span>'
+      + '<button class="phbtn" type="button" data-linkpair="' + qh + ':' + rh + '"'
+      + ' title="把 ' + H(x.qId) + ' 设为物理 ID、' + H(x.rId) + ' 设为响应 ID 并重新配对">就用这对 ID</button>'
+      + '</div>';
+  }).join('');
+  const more = list.length > 3 ? '<div class="phmore">还有 ' + (list.length - 3) + ' 组类似情况未列出</div>' : '';
+  return '<div class="panel pairhint"><div class="panel-hd"><b>物理 / 响应 ID 没对上</b>'
+    + '<span class="count">' + list.length + ' 组</span></div><div class="panel-bd">'
+    + '<div class="idnote" style="margin:0 0 8px">这些请求和响应的<strong>首字节正好差 0x40</strong>，'
+    + '确实是一问一答，但两个 ID 不满足 <code>请求 + 8 = 响应</code> 的约定，所以没有配对。'
+    + '常见于 29 位寻址（<code>18DA10F1 → 18DAF110</code>）和厂商自定义的 ID 对。'
+    + '点「就用这对 ID」会填进左侧「物理 ID / 响应 ID」并立即重新配对。</div>'
+    + rows + more + '</div></div>';
+}
+
+/* 提示条上的一键修正：物理 ID + 响应 ID 一起填 */
+function applyIdPair(qHex, rHex){
+  const q = parseIdStr(qHex), r = parseIdStr(rHex);
+  if(q === null || r === null) return;
+  const H = n => n.toString(16).toUpperCase();
+  const set = (id, val) => { const b = document.getElementById(id); if(b) b.value = val; };
+  set('id-phys', H(q));
+  set('id-resp', H(r));
+  const en = document.getElementById('id-enable');
+  if(en && !en.checked) en.checked = true;
+  IDPANEL_OPEN = true;
+  renderDecode();
+}
+
+/* 日志里出现过的全部 CAN ID —— 始终完整列出，不受当前过滤结果影响 */
+function renderIdHist(hist, cfg, opts){
+  if(!hist || !hist.size) return '';
+  cfg = cfg || {};
+  opts = opts || {};
+  const filterOn = !!opts.filterOn;
+  const active = filterOn
+    ? new Set([cfg.phys, cfg.func, cfg.resp].filter(v => v !== null && v !== undefined))
+    : null;
+
+  const arr = [...hist.entries()].sort((a, b) => (b[1] - a[1]) || (a[0] - b[0]));
+  const marks = id => {
+    const hit = [];
+    if(cfg.phys === id) hit.push('物理');
+    if(cfg.func === id) hit.push('功能');
+    if(cfg.resp === id) hit.push('响应');
+    return hit.length
+      ? '<span class="idslots">' + hit.map(s => '<span class="idslot">✓ ' + s + '</span>').join('') + '</span>'
+      : '';
+  };
+  const rows = arr.map(([id, n]) => {
+    const hex = id.toString(16).toUpperCase();
+    const off = active && !active.has(id);
+    const pals = (opts.pairs && opts.pairs.get(id)) || null;
+    return '<div class="idrow' + (off ? ' off' : '') + '" draggable="true" data-id="' + hex + '" tabindex="0"'
+      + ' title="拖到左侧「物理 ID / 功能 ID / 响应 ID」输入框即可填入；也可聚焦本行后按 1 / 2 / 3">'
+      + '<span class="grip" aria-hidden="true"></span>'
+      + '<span class="idname">0x' + hex + '</span>'
+      + '<span class="idcnt">× ' + n + '</span>'
+      + (off ? '<span class="idtag">未纳入</span>' : '')
+      + (pals && pals.length
+          ? (function(){
+              const names = pals.map(x => '0x' + x.toString(16).toUpperCase());
+              let show = names.slice(0, 2).join(' ');
+              if(show.length > 13) show = names[0] + (names.length > 1 ? ' …' : '');  // 29 位 ID 只留一个，别把行撑满
+              return '<span class="idpair" title="该 ID 上的请求，响应来自 ' + names.join(' / ') + '">⇄ ' + show + '</span>';
+            })()
+          : '')
+      + marks(id)
+      + '</div>';
+  }).join('');
+
+  return '<details class="idpanel"' + (IDPANEL_OPEN ? ' open' : '') + '>'
+    + '<summary>日志中出现的 CAN ID<span class="cnt">' + hist.size + ' 个 · 共 ' + [...hist.values()].reduce((a, b) => a + b, 0) + ' 帧</span></summary>'
+    + '<div class="idlist">' + rows + '</div>'
+    + '<div class="idnote">这里始终列出日志里出现过的<strong>全部</strong> ' + hist.size + ' 个 ID，与当前过滤条件无关；'
+    + '标「未纳入」的只是暂时没被过滤保留。<strong>把 ID 拖到左侧「物理 ID / 功能 ID / 响应 ID」输入框上松手</strong>，'
+    + '就会填进对应槽位并立即重新过滤（三个槽位互不影响，只改你拖到的那个）；'
+    + '键盘操作为聚焦某行后按 <code>1</code> / <code>2</code> / <code>3</code>。'
+    + '<code>✓</code> 表示该槽位当前占用，<code>⇄</code> 表示该 ID 上的请求被哪些 ID 应答了'
+    + '（识别三种关系：物理 <code>ID+8</code>、功能寻址多台 ECU、以及你在「响应 ID」里配置的 ID 对）；'
+    + '响应首字节还必须正好等于请求首字节 <code>+0x40</code>，两条同时成立才算一次对话。</div>'
+    + '</details>';
+}
+
+/* 把日志里的 ID 填进指定槽位 */
+function applyId(hex, slot){
+  const v = parseIdStr(hex);
+  if(v === null) return;
+  const H = n => n.toString(16).toUpperCase();
+  const set = (id, val) => { const box = document.getElementById(id); if(box) box.value = val; };
+
+  if(slot === 'phys'){
+    set('id-phys', H(v));
+  } else if(slot === 'resp'){
+    set('id-resp', H(v));
+  } else {
+    set('id-func', H(v));
+  }
+  const en = document.getElementById('id-enable');
+  if(en && !en.checked) en.checked = true;   // 填了 ID 却没过过滤，等于白填
+  IDPANEL_OPEN = true;                       // 点选后保持展开，别让列表看起来“消失”了
+  renderDecode();
+}
+
+function emptyBox(t){
+  return '<div class="panel"><div class="panel-bd"><div class="empty">' + t + '</div></div></div>';
+}
+
+/* 「帧明细」折叠开关：默认收起，首次展开时才生成帧卡片（大日志不至于卡） */
+function frameToggleHtml(refs, n){
+  if(!refs || !refs.length) return '';
+  return '<div class="fd-wrap">'
+    + '<button class="fd-toggle" type="button" aria-expanded="false" data-refs="' + refs.join(',') + '">'
+    + '<span class="caret"></span>帧明细<span class="fd-n">' + (n || refs.length) + ' 帧</span></button>'
+    + '<div class="fd-panel" hidden></div></div>';
+}
+
+/* 帧明细这一批该铺哪几帧：[from, to)。拉开一段是因为多帧重组的长报文动辄上百个 CF */
+function fdRange(total, shown, chunk){
+  chunk = chunk || FD_CHUNK;
+  const from = Math.max(0, Math.min(Number(shown) || 0, total || 0));
+  return {from: from, to: Math.min(total || 0, from + chunk)};
+}
+
+/* 帧明细分批状态：panel 元素 -> {list, shown}，不挂在 dataset 上免得序列化一堆帧号 */
+const FD_STATE = new WeakMap();
+
+/* 往面板里追加一批帧卡片；还有剩余就在末尾留一个「加载更多」 */
+function fdAppend(btn, panel){
+  let st = FD_STATE.get(panel);
+  if(!st){
+    const refs = (btn.dataset.refs || '').split(',').filter(Boolean).map(Number);
+    st = {list: refs.map(r => FRAME_MAP.get(r)).filter(Boolean), shown: 0};
+    FD_STATE.set(panel, st);
+  }
+  const r = fdRange(st.list.length, st.shown, FD_CHUNK);
+  let h = '';
+  for(let i = r.from; i < r.to; i++) h += renderFrame(st.list[i]);
+  st.shown = r.to;
+  const left = st.list.length - r.to;
+  if(left > 0){
+    h += '<div class="fd-more"><button class="fd-more-btn" type="button" data-fdmore="1"'
+       + ' title="继续展开剩下的帧">加载更多 <span class="k">还有 ' + left + ' 帧</span></button></div>';
+  }
+  const old = panel.querySelector('.fd-more');
+  if(old) old.remove();
+  panel.insertAdjacentHTML('beforeend', h);
+  return left;
+}
+
+function toggleFramePanel(btn){
+  const panel = btn.parentElement.querySelector('.fd-panel');
+  if(!panel) return;
+  const open = btn.getAttribute('aria-expanded') === 'true';
+  if(!open && !panel.dataset.built){
+    panel.innerHTML = '';
+    fdAppend(btn, panel);
+    panel.dataset.built = '1';
+  }
+  btn.setAttribute('aria-expanded', String(!open));
+  btn.classList.toggle('open', !open);
+  panel.hidden = open;
+  schedulePairLinks();   // 展开/收起会改变卡片高度，连线要重算
+}
+
+/* 相邻报文时间差 Δt：一次把整张列表算完，而不是渲染时临时找上一条。
+   这样翻段之后，段首那条也拿得到与上一段最后一条的差值（跨段不断链），
+   段内序号错位、跳段重绘都不会让 Δt 跟着错。 */
+function stampDelta(msgs){
+  let prev = null, prevNo = 0;
+  for(let i = 0; i < msgs.length; i++){
+    const m = msgs[i];
+    if(!m.meta) m.meta = {};
+    m.meta.dt = null;
+    m.meta.dtPrev = 0;
+    const ts = m.meta.ts;
+    if(ts === undefined || ts === null || !isFinite(ts)) continue;   // 没时间戳的报文跳过，但不打断前后两条的衔接
+    const v = Number(ts);
+    if(prev !== null){
+      m.meta.dt = v - prev;
+      m.meta.dtPrev = prevNo;
+    }
+    prev = v;
+    prevNo = i + 1;
+  }
+  return msgs;
+}
+
+/* Δt 的写法：1 秒以内用毫秒（P2 = 50ms、P2* = 5000ms 这些门限都是毫秒级，直接对着比），
+   1 秒以上用秒，位数跟 t= 那栏对齐 */
+function dtText(dt){
+  if(dt === null || dt === undefined || !isFinite(dt)) return '';
+  const a = Math.abs(dt);
+  return (dt < 0 ? '-' : '+') + (a >= 1 ? a.toFixed(6) + 's' : (a * 1000).toFixed(3) + 'ms');
+}
+
+/* ID 药丸的配色跟「这个 ID 在配置里是什么角色」走，而不是跟收发方向走：
+   物理 ID / 功能 ID 是测试仪发出去的请求 → 绿色；响应 ID 是 ECU 回话 → 蓝色；
+   三个槽位都没占的 ID（旁路观察、别的 ECU 的报文）保持灰。 */
+function idRole(id){
+  const cfg = IDCFG || (IDCFG = getIdCfg());
+  const ph = cfg && cfg.phys, fn = cfg && cfg.func, rs = cfg && cfg.resp;
+  if(ph !== null && ph !== undefined && id === ph) return {cls:'tag-info', role:'物理 ID'};
+  if(fn !== null && fn !== undefined && id === fn) return {cls:'tag-info', role:'功能 ID'};
+  if(rs !== null && rs !== undefined && id === rs) return {cls:'tag-ok', role:'响应 ID'};
+  return {cls:'tag-dim', role:''};
+}
+
+function renderMessage(m, i, mode, pair){
+  const dec = decodeUDS(m.payload);
+  let cls = dec.isNeg ? ' neg' : '';
+  if(dec.fail) cls += ' fail';
+  if(pair) cls += pair.role === 'req' ? ' pc-req' : ' pc-res';
+  const mt = m.meta || {};
+  let h = '<div class="msg' + cls + '" data-mi="' + (i - 1) + '"' + (pair ? ' data-pair="' + pair.seq + '"' : '') + '>';
+  h += '<div class="msg-hd"><span class="t">报文 #' + i + '</span>';
+  h += '<span class="pill ' + (m.kind==='single' ? 'b-sf'
+       : (m.kind==='multi' ? 'b-ff' : (m.kind==='orphan' ? 'b-cf' : 'tag-warn'))) + '">'
+     + (m.kind==='single' ? '单帧' : (m.kind==='raw' ? '原始报文' : (m.kind==='orphan'?'孤立连续帧':'多帧重组')))
+     + '</span>';
+  if(mt.id !== undefined && mt.id !== null){
+    const ir = idRole(mt.id);
+    h += '<span class="pill ' + ir.cls + '"' + (ir.role ? ' title="' + ir.role + '"' : '') + '>0x'
+       + mt.id.toString(16).toUpperCase() + (mt.ext ? ' ·29bit' : '') + '</span>';
+    h += '<span class="frames-ref">' + (mt.side === 'r' ? 'ECU → 测试仪' : '测试仪 → ECU') + '</span>';
+  }
+  if(mt.ts !== undefined && mt.ts !== null && isFinite(mt.ts)){
+    h += '<span class="frames-ref">t=' + Number(mt.ts).toFixed(6) + 's</span>';
+  }
+  // Δt：与上一条带时间戳的报文之差。第一条没有参照，不显示
+  const dtx = dtText(mt.dt);
+  if(dtx){
+    const over = mt.dt >= 1, back = mt.dt < 0;
+    h += '<span class="frames-ref dt' + (over ? ' over' : '') + (back ? ' back' : '') + '"'
+       + ' title="Δt = 这条与上一条报文的时间差'
+       + (mt.dtPrev ? '（上一条是 #' + mt.dtPrev + '）' : '')
+       + (back ? '；时间戳回退，日志可能是多路合并或乱序' : '')
+       + (over ? '；间隔超过 1 秒，注意是不是在等 P2* 或超时重试' : '') + '">Δt=' + dtx + '</span>';
+  }
+  h += '<span class="frames-ref">' + m.payload.length + ' 字节'
+     + (m.kind==='multi' ? ' / 声明 ' + m.total : '')
+     + (m.refs.length > 1 ? ' · 来自帧 ' + m.refs.join(',') : (m.refs.length===1?' · 帧 '+m.refs[0]:'')) + '</span>';
+  if(dec.isNeg) h += '<span class="pill tag-bad">负响应</span>';
+  if(dec.fail) h += '<span class="pill tag-bad" title="SID 是正响应 0x71，但 routineStatusRecord ≠ 0：例程自己报告执行失败">例程失败</span>';
+  // 请求 / 响应的成对关联：同一个「对话 N」认出同一次问答
+  if(pair){
+    // NRC 0x78：ECU 说「收到，稍等」，这一组对话还没结束，后面还有真正的响应
+    const pendRsp = pair.role === 'res' && m.payload[0] === 0x7F && m.payload[2] === 0x78;
+    const n = pair.n || 1;
+    // 一条请求挂多条响应（0x78 续等）时不写「↳ N 条响应」这种指路按钮，只在标签里带一句数量
+    h += '<span class="pair-tag" title="第 ' + pair.seq + ' 组对话（' + (pair.role === 'req' ? '请求' : '响应') + '）'
+       + '｜配对依据：' + esc(pair.why || '') + '，即 ID 关系成立且响应首字节 = 请求首字节 + 0x40'
+       + (pendRsp ? '｜NRC 0x78 挂起：ECU 还需要时间，这一组对话会继续往下配，一次请求可以对应多条响应' : '') + '">'
+       + '对话 ' + pair.seq + (pendRsp ? ' · 挂起' : '')
+       + (pair.role === 'req' && n > 1 ? ' · ' + n + ' 条响应' : '') + '</span>';
+  } else if(PAIR_ACTIVE && m.payload.length && !msgIsResp(m) && !rspSuppressed(m.payload)){
+    // 日志里确实存在成对问答，而这一条请求没有配上任何响应 —— 明确标出来，别让人以为漏渲染了
+    h += '<span class="pair-none" title="这条请求在日志范围内没有找到满足「ID 关系 + 首字节 +0x40」的响应'
+       + '（ECU 没应答、响应被过滤掉，或响应 ID 与请求 ID 不构成 +8 / 配置对）">无应答</span>';
+  }
+  h += '</div><div class="msg-bd">';
+  h += '<div class="hexline">' + (m.payload.map(hex2).join(' ') || '—') + '</div>';
+  h += '<div class="kv">';
+  dec.rows.forEach(r => {
+    h += '<div class="k">' + esc(r[0]) + '</div><div class="v">' + esc(r[1]) + '</div>';
+  });
+  h += '</div>';
+  if(dec.isNeg && dec.nrc){
+    h += '<div class="nrc-box">'
+      + '<b>NRC 0x' + hex2(dec.nrc.c) + ' · ' + esc(dec.nrc.name) + '</b><br>'
+      + '<span class="lab">含义：</span>' + esc(dec.nrc.why || dec.nrc.cn) + '<br>'
+      + '<span class="lab">排查：</span>' + esc(dec.nrc.tip || '—')
+      + '</div>';
+  }
+  if(dec.fail){
+    h += '<div class="fail-box">'
+      + '<b>例程执行失败：RoutineStatus = 0x' + hex2(dec.failSt) + '</b><br>'
+      + '<span class="lab">例程：</span>0x' + hex4(dec.failRid) + ' ' + esc(dec.failCn) + '<br>'
+      + '<span class="lab">怎么看：</span>响应 SID 是 0x71（正响应），只代表 ECU 收下了这次调用；'
+      + '真正的结果在最后一个字节 routineStatusRecord 里，0x00 才算成功，非 0 就是这一条例程没做成。<br>'
+      + '<span class="lab">下一步：</span>按例程语义排查（擦除失败常见于写保护未解除、电压不足、安全访问未解锁、Flash driver 未下载），'
+      + '排除后重跑 <code style="font-family:var(--mono)">31 01 '
+      + hex4(dec.failRid).replace(/^(.{2})(.{2})$/, '$1 $2') + '</code>。'
+      + '</div>';
+  }
+  if(m.notes && m.notes.length){
+    h += '<div class="warnline">⚠ ' + m.notes.map(esc).join('<br>⚠ ') + '</div>';
+  }
+  if(m.info && m.info.length){
+    h += '<div class="infoline">' + m.info.map(esc).join('<br>') + '</div>';
+  }
+  if(m.refs && m.refs.length){
+    const refs = m.refs.filter(r => FRAME_MAP.has(r));
+    if(refs.length) h += frameToggleHtml(refs, refs.length);
+  }
+  h += '</div></div>';
+  return h;
+}
+
+function renderFrame(f){
+  const cls = {SF:'b-sf', FF:'b-ff', CF:'b-cf', FC:'b-fc', UK:'b-uk'}[f.type];
+  const label = {SF:'单帧 SF', FF:'首帧 FF', CF:'连续帧 CF', FC:'流控帧 FC', UK:'未知'}[f.type];
+  let h = '<div class="frame-card">';
+  h += '<div class="frame-hd"><span class="fidx">#' + f.idx + '</span>'
+     + '<span class="badge ' + cls + '">' + label + '</span>';
+  if(f.id !== undefined && f.id !== null){
+    h += '<span class="fidx">0x' + f.id.toString(16).toUpperCase() + '</span>';
+  }
+  if(f.ts !== undefined && f.ts !== null && isFinite(f.ts)){
+    h += '<span class="fidx">t=' + Number(f.ts).toFixed(6) + '</span>';
+  }
+  if(f.fd) h += '<span class="badge b-uk" style="color:var(--fc); border-color:rgba(var(--fc-rgb),0.33)">FD</span>';
+  h += '<span class="fidx">' + f.bytes.length + ' 字节</span></div>';
+  h += '<div class="frame-body"><div class="bytes">';
+  f.cells.forEach(c => {
+    h += '<div class="byte r-' + c.r + '"><span class="h">' + c.h + '</span>'
+       + '<span class="bit">' + c.b.slice(0,4) + ' ' + c.b.slice(4) + '</span></div>';
+  });
+  h += '</div><table class="fd">';
+  f.fields.forEach(r => { h += '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>'; });
+  h += '</table>';
+  if(f.warnings && f.warnings.length){
+    h += '<div class="warnline">⚠ ' + f.warnings.map(esc).join('<br>⚠ ') + '</div>';
+  }
+  h += '</div></div>';
+  return h;
+}
+
+/* =========================================================
+   渲染：查询表
+   ========================================================= */
+function renderServices(q){
+  const kw = (q||'').trim().toLowerCase();
+  const body = document.getElementById('svc-body');
+  const list = SERVICES.filter(s => {
+    if(!kw) return true;
+    const hex = '0x' + s.sid.toString(16).padStart(2,'0');
+    return hex.includes(kw.replace(/^0x/,'')) || hex.includes(kw)
+        || s.name.toLowerCase().includes(kw) || s.cn.includes(q)
+        || ('0x' + hex2(s.sid)).includes(kw);
+  });
+  document.getElementById('svc-count').textContent = list.length + ' / ' + SERVICES.length + ' 项';
+  body.innerHTML = list.map(s => {
+    const hex = '0x' + hex2(s.sid);
+    const rid = 'svc-' + s.sid;
+    let subRows = '';
+    if(s.subs && s.subs.length){
+      subRows = '<h4>子功能 / 参数</h4><table class="mini">'
+        + s.subs.map(x => '<tr><td>0x' + hex2(x.v) + '</td><td>' + esc(x.n) + '</td><td>' + esc(x.c) + '</td></tr>').join('')
+        + '</table>';
+    }
+    return '<tr class="srow" data-target="' + rid + '">'
+      + '<td class="code">' + hex + '</td>'
+      + '<td class="name" title="' + esc(s.name) + '"><span class="expand">▶</span> ' + esc(s.name) + '</td>'
+      + '<td class="cn" title="' + esc(s.cn) + '">' + esc(s.cn) + '</td>'
+      + '<td class="mono" style="color:var(--res)" title="' + esc(s.resp) + '">' + esc(s.resp) + '</td>'
+      + '<td class="why" title="' + esc(s.desc) + '">' + esc(s.desc) + '</td></tr>'
+      + '<tr class="detail-row" id="' + rid + '" style="display:none"><td colspan="5"><div class="detail-inner">'
+      + '<div><h4>请求 / 响应格式</h4>'
+      +   '<table class="fmt">'
+      +   '<tr><td>REQ</td><td>' + esc(s.req) + '</td></tr>'
+      +   '<tr><td>RESP</td><td style="color:var(--res)">' + esc(s.resp) + '</td></tr>'
+      +   '<tr><td>NRC</td><td>7F ' + hex2(s.sid) + ' &lt;NRC&gt;</td></tr></table>'
+      +   '<p style="margin-top:8px; color:var(--txt3); font-size:12px">正响应 SID = ' + hex + ' + 0x40 = <b style="color:var(--res); font-family:var(--mono)">0x' + hex2((s.sid+0x40)&0xFF) + '</b></p>'
+      + '</div>'
+      + '<div>' + (subRows || '<h4>子功能</h4><p style="color:var(--txt3); font-size:12.5px">本服务无子功能参数</p>') + '</div>'
+      + '</div></td></tr>';
+  }).join('');
+  body.querySelectorAll('.srow').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const d = document.getElementById(tr.dataset.target);
+      const open = d.style.display !== 'none';
+      d.style.display = open ? 'none' : 'table-row';
+      tr.classList.toggle('open', !open);
+    });
+  });
+}
+
+function renderNRC(q){
+  const kw = (q||'').trim().toLowerCase();
+  const list = NRC_LIST.filter(n => {
+    if(!kw) return true;
+    return ('0x'+hex2(n.c)).includes(kw) || hex2(n.c).toLowerCase().includes(kw.replace(/^0x/,''))
+        || n.name.toLowerCase().includes(kw) || n.cn.includes(q) || (n.why||'').includes(q);
+  });
+  document.getElementById('nrc-count').textContent = list.length + ' / ' + NRC_LIST.length + ' 项';
+  document.getElementById('nrc-body').innerHTML = list.map(n => {
+    const cls = n.c === 0x78 ? 'tag-warn' : (n.c >= 0x80 ? 'tag-dim' : 'tag-bad');
+    // 行高等高靠「单行 + 省略号」，所以每格都带 title，被截掉的内容悬停可看
+    return '<tr><td class="code"><span class="pill ' + cls + '">0x' + hex2(n.c) + '</span></td>'
+      + '<td class="name" title="' + esc(n.name) + '">' + esc(n.name) + '</td>'
+      + '<td class="cn" title="' + esc(n.cn) + '">' + esc(n.cn) + '</td>'
+      + '<td class="why" title="' + esc(n.why) + '">' + esc(n.why) + '</td>'
+      + '<td class="why" style="color:var(--txt3)" title="' + esc(n.tip) + '">' + esc(n.tip) + '</td></tr>';
+  }).join('');
+}
+
+function renderDID(q){
+  const kw = (q||'').trim().toLowerCase();
+  const list = DID_LIST.filter(d => {
+    if(!kw) return true;
+    const hex = '0x' + d.did.toString(16).toUpperCase().padStart(4,'0');
+    return hex.toLowerCase().includes(kw.replace(/^0x/,'')) || d.name.toLowerCase().includes(kw)
+        || d.cn.includes(q) || (d.note||'').includes(q);
+  });
+  document.getElementById('did-count').textContent = list.length + ' / ' + DID_LIST.length + ' 项';
+  document.getElementById('did-body').innerHTML = list.map(d => {
+    const hex = '0x' + d.did.toString(16).toUpperCase().padStart(4,'0');
+    return '<tr><td class="code">' + hex + '</td>'
+      + '<td class="name">' + esc(d.name) + '</td>'
+      + '<td class="cn">' + esc(d.cn) + '</td>'
+      + '<td class="why">' + esc(d.note || '') + '</td></tr>';
+  }).join('');
+}
+
+/* =========================================================
+   查询表：例程（0x31）
+   ========================================================= */
+function renderRoutine(q){
+  const raw = (q || '').trim();
+  const kw = raw.toLowerCase();
+  const bare = kw.replace(/^0x/, '');
+  const list = ROUTINE_LIST.filter(r => {
+    if(!kw) return true;
+    const idTxt = (r.rid === null || r.rid === undefined) ? (r.range || '') : ('0x' + hex4(r.rid));
+    return idTxt.toLowerCase().includes(bare) || (r.name || '').toLowerCase().includes(kw)
+        || (r.cn || '').includes(raw) || (r.note || '').includes(raw) || (r.ex || '').toLowerCase().includes(kw);
+  });
+  document.getElementById('rtn-count').textContent = list.length + ' / ' + ROUTINE_LIST.length + ' 项';
+  document.getElementById('rtn-body').innerHTML = list.map(r => {
+    const isRange = (r.rid === null || r.rid === undefined);
+    const idTxt = isRange ? (r.range || '') : ('0x' + hex4(r.rid));
+    const cls = r.grp === 'ISO' ? 'tag-ok' : (r.grp === 'OEM' ? 'tag-warn' : 'tag-dim');
+    return '<tr><td class="code">' + esc(idTxt) + '</td>'
+      + '<td class="name">' + esc(r.name) + '</td>'
+      + '<td class="cn">' + esc(r.cn) + '</td>'
+      + '<td class="mono" style="color:var(--txt2); white-space:nowrap">' + esc(r.ex) + '</td>'
+      + '<td class="why"><span class="pill ' + cls + '">' + esc(r.grp) + '</span> '
+      + esc(r.note) + '</td></tr>';
+  }).join('');
+}
+
+/* =========================================================
+   参数速查：ISO-TP 帧结构示意图
+   ========================================================= */
+
+/* 字段字典：一个「参数」= 一段字节 + 含义 + 可选值 + 补充说明 */
+const REF_FIELDS = {
+  pciSf: {
+    short:'PCI', role:'pci', t:'单帧 PCI（byte0，CAN_DL ≤ 8）',
+    nib:{ hi:'PCI 类型 = 0x0（单帧）', lo:'SF_DL 数据长度' },
+    means:'高 4 位固定 0x0，声明这一帧是单帧（SingleFrame）；低 4 位 SF_DL 是本帧携带的有效数据字节数，接收方只取前 SF_DL 个字节，其余算填充。',
+    opts:[
+      ['0x01–0x06','SF_DL = 1–6','常规 / 扩展 / 混合寻址都允许'],
+      ['0x07','SF_DL = 7','仅常规寻址；扩展 / 混合寻址要多占 1 字节地址，最多 6'],
+      ['0x00','SF_DL = 0','8 字节帧里非法（规范列为保留）；CAN FD 上表示「转义」，真实长度写在 byte1'],
+      ['0x08–0x0F','无效','低 4 位装不下 8 字节以上 —— 数据 ≥ 8 字节时必须改成长格式']
+    ],
+    intro:'UDS 报文不超过 7 字节时就该用单帧，一帧发完，不发首帧、也不需要流控。单帧没有序号，永远单独成立。'
+  },
+  pciSfFd: {
+    short:'PCI·短', role:'pci', t:'单帧 PCI · 短格式（byte0，CAN_DL = 8）',
+    nib:{ hi:'PCI 类型 = 0x0（单帧）', lo:'SF_DL = 1–7' },
+    means:'短格式只属于 8 字节帧（CAN_DL = 8）：高 4 位 0x0 声明单帧，低 4 位就是真实的 SF_DL，数据从 byte1 紧接开始，最多 7 字节。CAN FD 上这条规则和经典 CAN 完全一样。',
+    opts:[
+      ['0x01–0x06','SF_DL = 1–6','常规 / 扩展 / 混合寻址都允许'],
+      ['0x07','SF_DL = 7','仅常规寻址；扩展 / 混合寻址最多 6'],
+      ['0x08–0x0F','无效','规范把这四个值直接定义为 invalid，不能拿低 4 位写 8–15'],
+      ['0x00','转义标志','低 4 位为 0 表示长度在 byte1，此时已不是 8 字节帧']
+    ],
+    intro:'分界是「8 字节帧」而不是「15 字节」：只要数据凑不进 8 字节帧（CAN_DL > 8），ISO 15765-2 就要求一律用 00 xx 的长格式。'
+  },
+  pciSfEsc: {
+    short:'PCI·转义', role:'pci', t:'单帧 PCI · 长格式（byte0）',
+    nib:{ hi:'PCI 类型 = 0x0（单帧）', lo:'固定 0x0 = 转义标志' },
+    means:'CAN_DL > 8 时强制使用 escape：byte0 低 4 位写 0（规范称之 invalid length，正好用不上），告诉接收方「长度在 byte1」。此时 PCI 占 2 字节，数据从 byte2 起。',
+    opts:[
+      ['0x00','长格式标志','CAN_DL > 8 的单帧必须这样写'],
+      ['0x01–0x07','8 字节帧的短格式','低 4 位非 0 时按短格式解析，byte1 已经是数据'],
+      ['0x08–0x0F','无效','写了也按错误帧丢弃 —— 短格式与 8 字节帧绑死，没有中间地带']
+    ],
+    intro:'为什么不在低 4 位写 8–15 省一个字节？规范没有给这个余地：低 4 位的 8–F 是 invalid，越长越只能走转义，于是长度上限变成 64 − 2 = 62。'
+  },
+  sfdlFd: {
+    short:'SF_DL', role:'len', t:'单帧长度 · 长格式（byte1）',
+    means:'CAN_DL > 8 时 SF_DL 一律写在这里，数据从 byte2 起，上限是 CAN_DL − 2（DLC 64 时 62 字节）。',
+    opts:[
+      ['0x08–0x3E','8–62 字节','长格式的合法区间，62 = DLC 64 减 2 字节 PCI'],
+      ['0x07','= 7 的例外','只有扩展 / 混合寻址允许写 7（数据区还要再少 1 字节地址）'],
+      ['0x00–0x06','预留','1–7 字节本该走短格式，出现在这里属越界'],
+      ['0x3F–0xFF','无效','超过 CAN FD 单帧上限 62，应改用首帧 + 连续帧']
+    ],
+    intro:'别和 DLC 混：SF_DL 只数数据字节，实际 CAN_DL 还要加 2 字节 PCI 并向上取到合法 DLC（12 / 16 / 20 / 24 / 32 / 48 / 64）。'
+  },
+  pciFf: {
+    short:'PCI·长度高', role:'pci', t:'首帧 PCI · 短格式长度高 4 位（byte0）',
+    nib:{ hi:'PCI 类型 = 0x1（首帧）', lo:'12 位长度的高 4 位' },
+    means:'高 4 位 0x1 表示首帧（FirstFrame）；低 4 位不是长度本身，而是整个报文长度的第 8–11 位，要和 byte1 拼起来才是 FF_DL。这是首帧的短格式（12 位长度）。',
+    opts:[
+      ['0x10–0x1F','FF_DL 高 4 位','完整长度 = (byte0 & 0x0F) × 256 + byte1，上限 4095'],
+      ['0x11–0x1F','短格式','低 4 位非 0 → 长度在 PCI 里，数据从 byte2 开始'],
+      ['10 00','长格式转义','byte0 = 0x10 且 byte1 = 0x00 时，长度改由 byte2–byte5 给出（仅 CAN FD）']
+    ],
+    intro:'首帧只在报文超过单帧能力时出现：经典 CAN 超过 7 字节、CAN FD 超过 62 字节。后面必须跟若干个连续帧，中间由接收方发流控帧放行。'
+  },
+  ffdl: {
+    short:'长度低 8 位', role:'len', t:'首帧长度低 8 位 · 短格式（byte1）',
+    means:'和 byte0 低 4 位拼成 12 位 FF_DL，表示整个 UDS 报文的总字节数 —— 不是本帧携带的数据量。',
+    opts:[
+      ['0x00–0xFF','长度低 8 位','FF_DL = ((byte0 & 0x0F) << 8) | byte1，上限 4095'],
+      ['0x08–0x3E','经典 CAN 的最小值','报文 8–62 字节走首帧；CAN FD 下这段长度本该用单帧'],
+      ['0x3F–0xFF','CAN FD 的起跳点','63 字节起才需要首帧 —— 62 及以下用单帧一帧就发完'],
+      ['10 00','转义标志','byte0 = 0x10 且 byte1 = 0x00 时，真长度写在后 4 字节（byte2–5），大端，仅 CAN FD']
+    ],
+    intro:'接收方用 FF_DL 减去首帧已带的数据量，再按每帧 7 字节（CAN FD 更多）算出还要收几个连续帧；收满才拼出一个完整报文。'
+  },
+  pciFfLong: {
+    short:'PCI·转义', role:'pci', t:'首帧 PCI · 长格式（byte0）',
+    nib:{ hi:'PCI 类型 = 0x1（首帧）', lo:'固定 0x0 = 12 位长度作废' },
+    means:'报文超过 4095 字节时改用 32 位长度：byte0 固定写 0x10，低 4 位清零表示「12 位 FF_DL 不再使用」，紧接着 byte1 也必须为 0x00。',
+    opts:[
+      ['0x10','长格式标志','低 4 位必须为 0，否则接收方按 12 位长度解析'],
+      ['0x11–0x1F','短格式','低 4 位非 0 → 12 位长度写法（≤ 4095）']
+    ],
+    intro:'CAN FD 首帧最多带 14 字节，普通诊断报文根本到不了 4095；只有刷写（34 / 36 服务）里的大数据块才会见到这种格式。'
+  },
+  ffEsc: {
+    short:'转义标志', role:'len', t:'首帧转义标志（byte1）',
+    means:'长格式下 byte1 固定 0x00，是给接收方的第二道标志：看到 10 00 就连同后面 4 个字节一起读成 32 位 FF_DL。',
+    opts:[
+      ['0x00','固定值','长格式必须为 0x00，配合 byte0 = 0x10 才成立'],
+      ['0x01–0xFF','回到短格式','此时 FF_DL = ((byte0 & 0x0F) << 8) | byte1']
+    ],
+    intro:'12 位写法下 FF_DL 最小是 1，10 00 这个组合永远不会表示「0 字节报文」，所以可以被安全地征用作转义标志。'
+  },
+  ffdl32: {
+    short:'FF_DL32', role:'len', t:'32 位报文长度（byte2–byte5，大端）',
+    means:'4 个字节拼成完整的 FF_DL，从 4096 起才用，上限 2³²−1。最高字节在 byte2 最前面，和 12 位写法一样是大端。',
+    opts:[
+      ['00 00 10 02','= 4098','示例：4098 字节的刷写数据块'],
+      ['00 00 10 00','= 4096','长格式的下限，再小就该用 12 位写法'],
+      ['FF FF FF FF','= 4294967295','协议上限，实际受接收方缓冲和 N_Cr 超时限制']
+    ],
+    intro:'首帧带完这 4 字节长度后只剩 10 字节数据（DLC 16 减 6 字节 PCI），比 12 位写法还少 4 字节，所以只有报文极长时才值得。'
+  },
+  pciCf: {
+    short:'PCI·SN', role:'sn', t:'连续帧 PCI + 序号（byte0）',
+    nib:{ hi:'PCI 类型 = 0x2（连续帧）', lo:'SN 序号' },
+    means:'高 4 位 0x2 表示连续帧（ConsecutiveFrame）；低 4 位 SN 是序号，接收方靠它判断有没有丢帧、有没有重复。',
+    opts:[
+      ['0x21–0x2F','SN = 1–15','从 1 开始，每发一帧加 1'],
+      ['0x20','SN = 0','0x0F 之后的回绕值，不是「第 0 帧」']
+    ],
+    intro:'SN 一旦跳号，整个多帧传输就作废，必须重发。手工造测试报文时最容易在这里出错。'
+  },
+  fs: {
+    short:'FS', role:'fc', t:'流控状态 FS（byte0）',
+    nib:{ hi:'PCI 类型 = 0x3（流控帧）', lo:'FS 流控状态' },
+    means:'流控帧由接收方发出，只有前 3 个字节有意义。低 4 位的 FS 告诉发送方：现在能不能接着发。',
+    opts:[
+      ['0 (CTS)','ClearToSend','继续发，按 BS / STmin 的节奏'],
+      ['1 (WAIT)','等待','暂停，等下一个流控帧；连续 WAIT 超过 N_WFTmax（常见 10）就中止'],
+      ['2 (OVFLW)','溢出','接收缓冲不够 / 报文过长，发送方必须中止本次传输'],
+      ['3–15','保留','出现即协议错误']
+    ],
+    intro:'一条 22 F1 90 读 VIN 的响应，ECU 会在首帧之后立刻发一帧 30 00 00 放行，这就是最常见的流控帧。'
+  },
+  bs: {
+    short:'BS', role:'fc', t:'块大小 BS（byte1）',
+    means:'每发多少个连续帧就要停下来等一个流控帧。',
+    opts:[
+      ['0x00','一次发完','剩余连续帧一口气发完，不再等流控（最常见）'],
+      ['0x01–0xFF','每 N 帧等一次','发满 N 个连续帧就要等下一个流控帧，超时由 N_Bs 管']
+    ],
+    intro:'现代 ECU 大多用 BS = 0；网关转发、缓冲小的节点常见 BS = 8 / 16。BS 不为 0 时，抓包会看到多个 30 xx xx。'
+  },
+  stmin: {
+    short:'STmin', role:'fc', t:'最小间隔 STmin（byte2）',
+    means:'两个连续帧之间至少要隔多久，是接收方对发送方的限速要求。',
+    opts:[
+      ['0x00','尽快','不额外等待，能多快发多快'],
+      ['0x01–0x7F','N 毫秒','1–127 ms'],
+      ['0x80–0xF0','保留','接收方按 0x7F（127 ms）兜底'],
+      ['0xF1–0xF9','100–900 µs','0xF1 = 100 µs，逐级 +100 µs'],
+      ['0xFA–0xFF','保留','同样按 127 ms 兜底']
+    ],
+    intro:'很多 ECU 实际不支持微秒级 STmin，抓到 0xF1–0xF9 时按 127 ms 处理更安全，否则容易把接收方冲爆。'
+  },
+  data: {
+    short:'数据', role:'data', t:'数据字节',
+    means:'承载 UDS 报文本身：SID、子功能、DID、参数…。单帧里这些字节就是完整报文；多帧里要把首帧 + 所有连续帧的数据按顺序拼起来。',
+    opts:[
+      ['0x00–0xFF','任意值','内容由具体服务决定，例如读取响应的 62 F1 90 + VIN'],
+      ['—','PCI 字节不算','拼接时要跳过每帧开头的 PCI 字节']
+    ],
+    intro:'算报文长度时只数数据字节：单帧看 SF_DL，多帧看 FF_DL，填充字节一律不算 —— 这是手算多帧最常见的错。'
+  },
+  pad: {
+    short:'填充', role:'pad', t:'填充 / 保留字节',
+    means:'不承载数据，只为把帧凑满 DLC。取值由 ECU 厂商约定，常见 0xAA、0xCC、0x00、0x55。',
+    opts:[
+      ['0xAA / 0xCC','常见填充','Vector 工具默认多为 0xAA，部分 OEM 用 0xCC'],
+      ['0x00 / 0x55','也常见','刷写流程里为了校验一致性会用固定值'],
+      ['—','与有效数据无关','取数据时严格按 SF_DL / FF_DL 截断']
+    ],
+    intro:'填充值本身没有语义，但会出现在原始报文里。取数据时严格按 SF_DL / FF_DL 截断，填充字节不算进报文长度 —— 这是手算多帧最常见的错。'
+  },
+  fdTail: {
+    short:'剩余字节', role:'tail', t:'CAN FD 剩余数据 / 填充（byte 之后）',
+    means:'CAN FD 的 DLC 可以是 12 / 16 / 20 / 24 / 32 / 48 / 64，示意图只画到前 16 个字节；后面的字节继续装数据，装不满的同样用填充补齐。',
+    opts:[
+      ['0–8','DLC = 长度','经典长度'],
+      ['9 → 12','DLC 9','实际可用 12 字节'],
+      ['10 → 16','DLC 10','实际可用 16 字节'],
+      ['11 → 20','DLC 11','实际可用 20 字节'],
+      ['12 → 24','DLC 12','实际可用 24 字节'],
+      ['13 → 32','DLC 13','实际可用 32 字节'],
+      ['14 → 48','DLC 14','实际可用 48 字节'],
+      ['15 → 64','DLC 15','实际可用 64 字节']
+    ],
+    intro:'ISO-TP 在 CAN FD 上按 DLC 对齐填充，接收方仍按 PCI 里的长度截取。所以不要用「帧长度」倒推报文长度。'
+  }
+};
+
+/* 每种「总线 × 帧类型」的字节布局；v 是示意图里显示的示例值 */
+function segCells(f, lab, vals){ return vals.map(v => ({f, lab, v})); }
+
+const REF_LAYOUTS = {
+  'can:sf': {
+    cap:'<b>示例 02 10 03</b>：单帧承载 10 03（会话控制），2 字节数据 + 5 字节填充，整帧 8 字节。',
+    b:[ {f:'pciSf', lab:'PCI', v:0x02}, {f:'data', v:0x10}, {f:'data', v:0x03} ]
+      .concat(segCells('pad', '填充', [0xAA,0xAA,0xAA,0xAA,0xAA]))
+  },
+  'can:ff': {
+    cap:'<b>示例 10 0E …</b>：首帧声明整个报文 14 字节（0x00E），本帧先带 6 字节数据，剩下的交给连续帧。',
+    b:[ {f:'pciFf', lab:'PCI·长度高', v:0x10}, {f:'ffdl', lab:'长度低 8 位', v:0x0E} ]
+      .concat(segCells('data', '数据', [0x2E,0xF1,0x87,0x41,0x42,0x43]))
+  },
+  'can:cf': {
+    cap:'<b>示例 21 30 …</b>：第 1 个连续帧（SN = 1），后面 7 字节继续装报文数据。',
+    b:[ {f:'pciCf', lab:'PCI·SN', v:0x21} ]
+      .concat(segCells('data', '数据', [0x30,0x31,0x32,0x33,0x34,0x35,0x36]))
+  },
+  'can:fc': {
+    cap:'<b>示例 30 00 00</b>：CTS 放行、块大小无限、间隔尽快 —— 最常见的流控帧。',
+    b:[ {f:'fs', lab:'FS', v:0x30}, {f:'bs', lab:'BS', v:0x00}, {f:'stmin', lab:'STmin', v:0x00} ]
+      .concat(segCells('pad', '保留', [0xAA,0xAA,0xAA,0xAA,0xAA]))
+  },
+  /* ---- CAN FD 单帧：短格式只管 8 字节帧，CAN_DL > 8 一律转义 ---- */
+  'fd:sf:short': {
+    fmt:'short',
+    cap:'<b>短格式 07 22 F1 90 …</b>：8 字节帧（CAN_DL = 8），byte0 低 4 位直接是 SF_DL = 7，后面正好 7 字节数据。到此为止 —— 数据到 8 字节就必须切长格式。',
+    b:[ {f:'pciSfFd', lab:'PCI·短', v:0x07} ]
+      .concat(segCells('data', '数据', [0x22,0xF1,0x90,0x31,0x4A,0x34,0x47]))
+  },
+  'fd:sf:long': {
+    tail:true, fmt:'long',
+    cap:'<b>长格式 00 0E 62 F1 90 …</b>：14 字节数据凑不进 8 字节帧，低 4 位写 0 作转义，SF_DL = 0x0E 放在 byte1，data 从 byte2 起，正好填满 DLC 16。8–62 字节只能这么发。',
+    b:[ {f:'pciSfEsc', lab:'PCI·转义', v:0x00}, {f:'sfdlFd', lab:'SF_DL', v:0x0E} ]
+      .concat(segCells('data', '数据', [0x62,0xF1,0x90,0x57,0x56,0x57,0x5A,0x5A,0x5A,0x31,0x4B,0x5A,0x41,0x4D]))
+  },
+  /* ---- CAN FD 首帧：12 位长度 / 32 位长度 ---- */
+  'fd:ff:short': {
+    tail:true, fmt:'short',
+    cap:'<b>短格式 10 C8 …</b>：低 4 位 0x0 是长度的第 8–11 位、byte1 是低 8 位，拼出 FF_DL = 0x0C8 = 200 字节；本帧带 14 字节，剩下的交给连续帧。FF_DL ≤ 4095 都用这种写法。',
+    b:[ {f:'pciFf', lab:'PCI·长度高', v:0x10}, {f:'ffdl', lab:'长度低 8 位', v:0xC8} ]
+      .concat(segCells('data', '数据', [0x2E,0xF1,0x87,0x41,0x42,0x43,0x44,0x45,0x46,0x47,0x48,0x49,0x4A,0x4B]))
+  },
+  'fd:ff:long': {
+    tail:true, fmt:'long',
+    cap:'<b>长格式 10 00 00 00 10 02 …</b>：4098 字节的刷写块，12 位长度装不下 —— byte0/byte1 写 10 00 作转义，真长度放在 byte2–5（大端），本帧只剩 10 字节数据。',
+    b:[ {f:'pciFfLong', lab:'PCI·转义', v:0x10}, {f:'ffEsc', lab:'转义标志', v:0x00},
+        {f:'ffdl32', lab:'长度 31–24', v:0x00, sub:'第 1/4 字节 · FF_DL bit31–24'},
+        {f:'ffdl32', lab:'长度 23–16', v:0x00, sub:'第 2/4 字节 · FF_DL bit23–16'},
+        {f:'ffdl32', lab:'长度 15–8', v:0x10, sub:'第 3/4 字节 · FF_DL bit15–8'},
+        {f:'ffdl32', lab:'长度 7–0', v:0x02, sub:'第 4/4 字节 · FF_DL bit7–0'} ]
+      .concat(segCells('data', '数据', [0x2E,0xF1,0x87,0x41,0x42,0x43,0x44,0x45,0x46,0x47]))
+  },
+  'fd:cf': {
+    tail:true,
+    cap:'<b>示例 21 …</b>：连续帧一次带 15 字节，比经典 CAN 的 7 字节快一倍多，长报文传输时间大幅缩短。',
+    b:[ {f:'pciCf', lab:'PCI·SN', v:0x21} ]
+      .concat(segCells('data', '数据', [0x30,0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0x3A,0x3B,0x3C,0x3D,0x3E]))
+  },
+  'fd:fc': {
+    tail:true,
+    cap:'<b>示例 30 00 00</b>：CAN FD 的流控帧只占前 3 字节，其余按 DLC 填充。',
+    b:[ {f:'fs', lab:'FS', v:0x30}, {f:'bs', lab:'BS', v:0x00}, {f:'stmin', lab:'STmin', v:0x00} ]
+      .concat(segCells('pad', '保留', [0xAA,0xAA,0xAA,0xAA,0xAA,0xAA,0xAA,0xAA,0xAA,0xAA,0xAA,0xAA,0xAA]))
+  }
+};
+
+const REF_VIEW = { bus:'can', ft:'sf', fmt:'short', sel:0 };
+
+/* 只有 CAN FD 的单帧 / 首帧分短、长两种长度格式，其余布局 key 不变 */
+function refHasFmt(bus, ft){ return bus === 'fd' && (ft === 'sf' || ft === 'ff'); }
+function refKey(){
+  const b = REF_VIEW.bus, f = REF_VIEW.ft;
+  if(refHasFmt(b, f)) return 'fd:' + f + ':' + (REF_VIEW.fmt === 'long' ? 'long' : 'short');
+  return b + ':' + f;
+}
+
+function refCells(L){ return L.tail ? L.b.concat([{f:'fdTail', tail:true}]) : L.b.slice(); }
+function refField(k){ return REF_FIELDS[k] || REF_FIELDS.data; }
+
+function refDetailHTML(cell, idx, L){
+  const f = refField(cell.f);
+  const isTail = !!cell.tail;
+  const no = isTail ? (L.b.length + '–63') : String(idx);
+  const val = (typeof cell.v === 'number') ? ('0x' + hex2(cell.v)) : '—';
+
+  let bits = '', nib = '';
+  if(!isTail && typeof cell.v === 'number'){
+    for(let b = 7; b >= 0; b--){
+      const cls = f.nib ? (b >= 4 ? ' hi' : ' lo') : '';
+      bits += '<div class="bitc' + cls + '"><i>b' + b + '</i><b>' + ((cell.v >> b) & 1) + '</b></div>';
+    }
+    if(f.nib){
+      nib = '<div class="nibrow"><span>' + esc(f.nib.hi) + '</span><span>' + esc(f.nib.lo) + '</span></div>';
+    }
+  }
+  const opts = f.opts.map(o =>
+    '<tr><td title="' + esc(o[0]) + '">' + esc(o[0]) + '</td><td title="' + esc(o[1]) + '">' + esc(o[1]) + '</td><td>' + esc(o[2]) + '</td></tr>'
+  ).join('');
+
+  return '<div class="bd-left">'
+    + '<div class="bd-head"><span class="bd-byte">byte ' + no + '</span>'
+    + '<span class="bd-val">' + val + '</span>'
+    + '<span class="bd-role ' + f.role + '">' + esc(f.short) + '</span></div>'
+    + '<div class="bd-title">' + esc(f.t)
+    + (cell.sub ? '<span class="bd-sub">' + esc(cell.sub) + '</span>' : '') + '</div>'
+    + (bits ? '<div class="bits8">' + bits + '</div>' + nib : '')
+    + '</div>'
+    + '<div class="bd-right">'
+    + '<div class="bd-sec"><h4>含义</h4><p>' + esc(f.means) + '</p></div>'
+    + '<div class="bd-sec"><h4>可选参数</h4><table class="bd-opts">' + opts + '</table></div>'
+    + '<div class="bd-sec"><h4>补充说明</h4><p>' + esc(f.intro) + '</p></div>'
+    + '</div>';
+}
+
+function renderParamRef(){
+  const L = REF_LAYOUTS[refKey()] || REF_LAYOUTS['can:sf'];
+  const cells = refCells(L);
+  if(!(REF_VIEW.sel >= 0 && REF_VIEW.sel < cells.length)) REF_VIEW.sel = 0;
+  const selF = cells[REF_VIEW.sel].f;
+
+  const diag = document.getElementById('ref-diagram');
+  if(diag){
+    diag.innerHTML = cells.map((c, i) => {
+      const f = refField(c.f);
+      const no = c.tail ? (L.b.length + '–63') : String(i);
+      const val = c.tail ? '…' : hex2(c.v);
+      const cls = 'bc rl-' + f.role + (c.tail ? ' wide' : '')
+        + (i === REF_VIEW.sel ? ' on' : (c.f === selF ? ' same' : ''));
+      return '<button type="button" class="' + cls + '" data-i="' + i + '" title="' + esc(f.t) + '">'
+        + '<span class="bc-n">byte ' + no + '</span>'
+        + '<span class="bc-v">' + val + '</span>'
+        + '<span class="bc-t">' + esc(c.lab || f.short) + '</span>'
+        + '</button>';
+    }).join('');
+  }
+  const ex = document.getElementById('ref-ex');
+  if(ex) ex.textContent = '示例 ' + L.b.map(c => hex2(c.v)).join(' ') + (L.tail ? ' …' : '') + ' · DLC ' + L.b.length;
+  const cap = document.getElementById('ref-cap');
+  if(cap) cap.innerHTML = L.cap;
+
+  /* 长度格式组：只有 CAN FD 的单帧 / 首帧才有，顺带按帧类型把上下限写进按钮 */
+  const fmtBox = document.getElementById('ref-fmt');
+  if(fmtBox){
+    const show = refHasFmt(REF_VIEW.bus, REF_VIEW.ft);
+    fmtBox.hidden = !show;
+    if(show && typeof fmtBox.querySelectorAll === 'function'){
+      const sf = REF_VIEW.ft === 'sf';
+      fmtBox.querySelectorAll('button[data-fmt]').forEach(b => {
+        const lng = b.dataset.fmt === 'long';
+        b.textContent = sf ? (lng ? '长格式 8–62' : '短格式 1–7')
+                           : (lng ? '长格式 > 4095' : '短格式 ≤ 4095');
+        b.classList.toggle('on', b.dataset.fmt === REF_VIEW.fmt);
+        if(b.dataset.tip) b.title = b.dataset.tip;
+      });
+    }
+  }
+
+  const det = document.getElementById('ref-detail');
+  if(det) det.innerHTML = refDetailHTML(cells[REF_VIEW.sel], REF_VIEW.sel, L);
+}
+
+function setRefView(bus, ft, sel, fmt){
+  if(bus) REF_VIEW.bus = bus;
+  if(ft) REF_VIEW.ft = ft;
+  if(fmt) REF_VIEW.fmt = (fmt === 'long') ? 'long' : 'short';
+  if(sel !== undefined && sel !== null) REF_VIEW.sel = sel;
+  renderParamRef();
+}
+
+function initParamRef(){
+  const bus = document.getElementById('ref-bus');
+  const ft = document.getElementById('ref-type');
+  const diag = document.getElementById('ref-diagram');
+  if(!bus || !ft || !diag) return;
+  const fmt = document.getElementById('ref-fmt');
+
+  const pick = (box, kb, kf) => {
+    if(!box || typeof box.querySelectorAll !== 'function') return;
+    box.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset[kb] === REF_VIEW[kf]));
+  };
+  bus.addEventListener('click', e => {
+    const b = e.target.closest('button[data-bus]');
+    if(!b) return;
+    REF_VIEW.bus = b.dataset.bus; REF_VIEW.sel = 0; REF_VIEW.fmt = 'short';
+    pick(bus, 'bus', 'bus'); pick(fmt, 'fmt', 'fmt'); renderParamRef();
+  });
+  ft.addEventListener('click', e => {
+    const b = e.target.closest('button[data-ft]');
+    if(!b) return;
+    REF_VIEW.ft = b.dataset.ft; REF_VIEW.sel = 0; REF_VIEW.fmt = 'short';
+    pick(ft, 'ft', 'ft'); pick(fmt, 'fmt', 'fmt'); renderParamRef();
+  });
+  if(fmt){
+    fmt.addEventListener('click', e => {
+      const b = e.target.closest('button[data-fmt]');
+      if(!b) return;
+      REF_VIEW.fmt = (b.dataset.fmt === 'long') ? 'long' : 'short';
+      REF_VIEW.sel = 0;
+      pick(fmt, 'fmt', 'fmt'); renderParamRef();
+    });
+  }
+  diag.addEventListener('click', e => {
+    const b = e.target.closest('button[data-i]');
+    if(!b) return;
+    REF_VIEW.sel = parseInt(b.dataset.i, 10) || 0;
+    renderParamRef();
+  });
+
+  pick(bus, 'bus', 'bus');
+  pick(ft, 'ft', 'ft');
+  pick(fmt, 'fmt', 'fmt');
+  renderParamRef();
+}
+
+/* =========================================================
+   DTC
+   ========================================================= */
+function dtcFromHex(str){
+  const r = parseBytes(str);
+  if(r.error || r.bytes.length < 2) return null;
+  const b0 = r.bytes[0], b1 = r.bytes[1];
+  const st = r.bytes.length >= 3 ? r.bytes[2] : null;
+  return {b0, b1, st, code: fmtDTC(b0,b1)};
+}
+function hexFromDTC(str){
+  const s = String(str).toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(!/^[PCBU][0-3][0-9A-F][0-9A-F]{2}$/.test(s)) return null;
+  const li = {P:0,C:1,B:2,U:3}[s[0]];
+  const b0 = (li << 6) | (parseInt(s[1],10) << 4) | parseInt(s[2],16);
+  const b1 = parseInt(s.slice(3,5),16);
+  return {b0,b1,code:s};
+}
+function renderDTCStatus(st){
+  const grid = document.getElementById('dtc-bits');
+  const list = document.getElementById('dtc-bit-list');
+  document.getElementById('dtc-status-raw').textContent = st === null ? '未提供' : '0x' + hex2(st) + '  ' + bits8(st);
+  grid.innerHTML = DTC_BITS.map(b => {
+    const on = st !== null && (st & (1<<b.b));
+    return '<div class="bitcell ' + (on?'on':'off') + '"><div class="n">b' + b.b + '</div><div class="v">' + (on?1:0) + '</div></div>';
+  }).join('');
+  list.innerHTML = DTC_BITS.map(b => {
+    const on = st !== null && (st & (1<<b.b));
+    return '<div class="row"><span class="c" style="color:' + (on?'var(--res)':'var(--txt3)') + '">b' + b.b + '</span>'
+      + '<span class="d">' + esc(b.c) + '<span style="color:var(--txt3)"> · ' + esc(b.n) + '</span></span></div>';
+  }).join('');
+}
+
+function initDTC(){
+  const hx = document.getElementById('dtc-hex');
+  const sv = document.getElementById('dtc-str');
+  const res = document.getElementById('dtc-result');
+  const det = document.getElementById('dtc-detail');
+
+  function fromHex(){
+    const v = dtcFromHex(hx.value);
+    if(!v){ res.textContent = '—'; det.innerHTML = ''; renderDTCStatus(null); return; }
+    res.textContent = v.code;
+    sv.value = v.code;
+    det.innerHTML = '<div class="k">字节</div><div class="v">' + hex2(v.b0) + ' ' + hex2(v.b1) + (v.st!==null?' ' + hex2(v.st):'') + '</div>'
+      + '<div class="k">系统</div><div class="v">' + {P:'P 动力总成',C:'C 底盘',B:'B 车身',U:'U 网络'}[v.code[0]] + '</div>'
+      + '<div class="k">故障码</div><div class="v">' + v.code.slice(1) + '</div>'
+      + (v.st!==null ? '<div class="k">状态字节</div><div class="v">0x' + hex2(v.st) + ' ' + statusMaskText(v.st) + '</div>' : '');
+    renderDTCStatus(v.st);
+  }
+  function fromStr(){
+    const v = hexFromDTC(sv.value);
+    if(!v){ res.textContent = '—'; det.innerHTML = ''; return; }
+    res.textContent = v.code;
+    hx.value = hex2(v.b0) + ' ' + hex2(v.b1);
+    fromHex();
+  }
+  hx.addEventListener('input', fromHex);
+  sv.addEventListener('input', fromStr);
+}
+
+/* =========================================================
+   示例
+   ========================================================= */
+const DEMO = `# 1) 进扩展会话
+02 10 03
+06 50 03 00 32 01 F4
+
+# 2) 安全访问（请求种子 → 送密钥）
+02 27 01
+06 67 01 12 34 56 78
+06 27 02 AA BB CC DD
+02 67 02
+
+# 3) 读 VIN（20 字节，必然多帧）
+03 22 F1 90
+10 14 62 F1 90 57 50 30
+21 5A 5A 5A 39 39 5A 54
+22 53 31 32 33 34 35 36
+
+# 4) 流控帧（接收方回 CTS，BS=0，STmin=0）
+30 00 00
+
+# 5) 一个典型失败：默认会话下写 DID
+03 2E F1 90
+03 7F 2E 7F
+
+# 6) 响应挂起
+02 31 01
+03 7F 31 78
+05 71 01 02 03 00`;
+
+/* =========================================================
+   总装
+   ========================================================= */
+/* 读取并解析日志文件 */
+function loadLogFile(file){
+  const info = document.getElementById('file-info');
+  const out = document.getElementById('out-area');
+  info.innerHTML = '正在解析 <b>' + esc(file.name) + '</b> …';
+
+  const fr = new FileReader();
+  fr.onload = () => {
+    try {
+      const u8 = new Uint8Array(fr.result);
+      const res = parseLogFile(u8);
+      FILE_FRAMES = res.frames;
+      FILE_INFO = Object.assign({name:file.name, size:u8.length}, res.info);
+
+      let t0 = Infinity, t1 = -Infinity, fdN = 0;
+      const ids = new Set();
+      for(const f of res.frames){
+        if(isFinite(f.ts)){ if(f.ts < t0) t0 = f.ts; if(f.ts > t1) t1 = f.ts; }
+        if(f.fd || (f.data && f.data.length > 8)) fdN++;
+        ids.add(f.id);
+      }
+      const dur = (isFinite(t0) && isFinite(t1)) ? (t1 - t0) : 0;
+
+      info.innerHTML = '<b>' + esc(file.name) + '</b> · ' + (u8.length / 1024).toFixed(1) + ' KB<br>'
+        + '格式 ' + res.info.format + ' · ' + res.frames.length + ' 帧 · ' + ids.size + ' 个 ID · FD ' + fdN + ' 帧<br>'
+        + '时长 ' + dur.toFixed(3) + ' s'
+        + (res.info.skipped ? ' · 跳过 ' + res.info.skipped + ' 行（表头/注释）' : '')
+        + (res.info.compressed ? ' · ' + res.info.compressed + ' 个压缩块' : '');
+      renderDecode();
+    } catch(e){
+      FILE_FRAMES = null; FILE_INFO = null;
+      const m = e && e.message ? e.message : String(e);
+      info.innerHTML = '<span class="bad">解析失败：' + esc(m) + '</span><br>可先在 CANoe / CANalyzer 中导出为 .asc 再试。';
+      out.innerHTML = emptyBox('文件解析失败<br><span style="font-size:12px">' + esc(m) + '</span>');
+      document.getElementById('in-stat').textContent = '';
+    }
+  };
+  fr.onerror = () => { info.innerHTML = '<span class="bad">读取文件失败</span>'; };
+  fr.readAsArrayBuffer(file);
+}
+
+/* ---------- 主题切换：跟随系统 / 明亮 / 黑暗 ---------- */
+const THEME_KEY = 'uds-theme';
+const THEME_MQ = (typeof window !== 'undefined' && window.matchMedia)
+  ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+function themePref(){
+  try { return localStorage.getItem(THEME_KEY) || 'auto'; } catch(e){ return 'auto'; }
+}
+function themeIsDark(pref){
+  if(pref === 'dark') return true;
+  if(pref === 'light') return false;
+  return !!(THEME_MQ && THEME_MQ.matches);
+}
+function applyTheme(pref, persist){
+  const dark = themeIsDark(pref);
+  const de = document.documentElement;
+  de.setAttribute('data-theme', dark ? 'dark' : 'light');
+  de.setAttribute('data-theme-pref', pref);
+  if(document.querySelectorAll){
+    document.querySelectorAll('.theme-sw button').forEach(b => {
+      const on = b.dataset.th === pref;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+  if(persist){ try { localStorage.setItem(THEME_KEY, pref); } catch(e){} }
+}
+function initTheme(){
+  if(typeof document.querySelectorAll !== 'function') return;
+  applyTheme(themePref(), false);
+  document.querySelectorAll('.theme-sw button').forEach(b => {
+    b.addEventListener('click', () => applyTheme(b.dataset.th, true));
+  });
+  // 「跟随系统」时要实时跟随系统换肤，而不是只在启动时判断一次
+  const onSys = () => { if(themePref() === 'auto') applyTheme('auto', false); };
+  if(THEME_MQ){
+    if(THEME_MQ.addEventListener) THEME_MQ.addEventListener('change', onSys);
+    else if(THEME_MQ.addListener) THEME_MQ.addListener(onSys);
+  }
+}
+
+function init(){
+  initTheme();
+
+  // tabs
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.pane').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById('pane-' + t.dataset.pane).classList.add('active');
+    });
+  });
+
+  // mode switch
+  function setMode(mode){
+    document.querySelectorAll('#mode-switch button').forEach(x => x.classList.toggle('on', x.dataset.mode === mode));
+    const isFile = mode === 'file';
+    const box = document.getElementById('in-box');
+    box.style.display = isFile ? 'none' : '';
+    document.getElementById('file-zone').style.display = isFile ? '' : 'none';
+    document.getElementById('input-hint').style.display = isFile ? 'none' : '';
+    box.placeholder = mode === 'raw'
+      ? '直接粘贴 UDS 报文，所有字节按一个报文解析\n例如：22 F1 90'
+      : '每行一帧，十六进制字节\n例如：02 10 03';
+  }
+  document.querySelectorAll('#mode-switch button').forEach(b => {
+    b.addEventListener('click', () => { setMode(b.dataset.mode); if(b.dataset.mode === 'file') renderDecode(); });
+  });
+  // 默认落在「文件导入」：诊断日志基本都是导文件，粘贴只是备选
+  setMode('file');
+
+  // 文件导入
+  const fileInput = document.getElementById('file-input');
+  const dz = document.getElementById('dropzone');
+  dz.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    if(fileInput.files && fileInput.files[0]) loadLogFile(fileInput.files[0]);
+    fileInput.value = '';
+  });
+  ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
+  ['dragleave'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('over'); }));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('over');
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(f) loadLogFile(f);
+  });
+
+  // ID 配置：三个 ID 完全独立，改哪个只影响哪个
+  const ph = document.getElementById('id-phys');
+  const fu = document.getElementById('id-func');
+  const re = document.getElementById('id-resp');
+  const onIdChange = () => { if(FILE_FRAMES) renderDecode(); };
+  ph.addEventListener('change', onIdChange);
+  fu.addEventListener('change', onIdChange);
+  re.addEventListener('change', onIdChange);
+  document.getElementById('id-enable').addEventListener('change', onIdChange);
+
+  /* ---- 把「日志中出现的 CAN ID」拖到三个输入框上填入对应槽位 ---- */
+  const dropSlots = [[ph, 'phys'], [fu, 'func'], [re, 'resp']];
+  const dragHex = e => {
+    let t = '';
+    try { t = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || ''; } catch(_){}
+    t = (t || DRAG_HEX || '').trim();
+    const m = /^(?:0x)?([0-9a-f]{1,8})$/i.exec(t);
+    return m ? m[1].toUpperCase() : null;
+  };
+  dropSlots.forEach(([box, slot]) => {
+    const cell = box.parentElement;
+    const lit = on => {
+      box.classList.toggle('drop-on', on);
+      if(cell) cell.classList.toggle('drop-on', on);
+    };
+    cell.addEventListener('dragover', e => {
+      if(!DRAG_HEX) return;
+      e.preventDefault();
+      if(e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      lit(true);
+    });
+    cell.addEventListener('dragleave', e => {
+      if(!cell.contains(e.relatedTarget)) lit(false);
+    });
+    cell.addEventListener('drop', e => {
+      e.preventDefault();
+      lit(false);
+      const hex = dragHex(e);
+      DRAG_HEX = null;
+      if(hex) applyId(hex, slot);
+    });
+  });
+
+  document.getElementById('btn-parse').addEventListener('click', renderDecode);
+  // 报文卡片里的「帧明细」开关 + NRC 跳转（事件委托，重渲染后依然有效）
+  const outArea = document.getElementById('out-area');
+  // 请求/响应连线的重算时机：窗口缩放、帧明细展开收起都会改变卡片位置
+  window.addEventListener('resize', schedulePairLinks);
+  if(typeof ResizeObserver === 'function'){
+    try {
+      PL_RO = new ResizeObserver(schedulePairLinks);
+      PL_RO.observe(outArea);
+    } catch(e){ PL_RO = null; }
+  }
+  outArea.addEventListener('click', e => {
+    if(!e.target.closest) return;
+    const sm = e.target.closest('summary');
+    if(sm && sm.parentElement && sm.parentElement.classList.contains('idpanel')){
+      IDPANEL_OPEN = !sm.parentElement.open;   // 点击后 details 才翻转，这里记住新状态
+    }
+    const jb = e.target.closest('[data-jump="nrc"]');
+    if(jb){ jumpNrc(); return; }
+    const lp = e.target.closest('[data-linkpair]');
+    if(lp){
+      e.preventDefault();
+      const [q, r] = String(lp.dataset.linkpair || '').split(':');
+      if(q && r) applyIdPair(q, r);
+      return;
+    }
+    const go = e.target.closest('[data-go]');
+    if(go){ e.preventDefault(); jumpToMessage(+go.dataset.go); return; }
+    // 报文分段：上一段 / 下一段
+    const pg = e.target.closest('[data-page]');
+    if(pg){
+      const pos = msgWindow(MSG_ALL.length, MSG_START, MSG_PAGE);
+      MSG_START = pg.dataset.page === 'next' ? pos.end : Math.max(0, pos.start - MSG_PAGE);
+      renderMsgWindow(true);
+      return;
+    }
+    // 帧明细：再铺一批
+    const fm = e.target.closest('[data-fdmore]');
+    if(fm){
+      const panel = fm.closest('.fd-panel');
+      const btn = panel && panel.parentElement.querySelector('.fd-toggle');
+      if(panel && btn){ fdAppend(btn, panel); schedulePairLinks(); }
+      return;
+    }
+    const btn = e.target.closest('.fd-toggle');
+    if(btn) toggleFramePanel(btn);
+  });
+  // 拖拽：整行可拖，拖起来后左侧三个输入框变亮
+  outArea.addEventListener('dragstart', e => {
+    const row = e.target.closest && e.target.closest('.idrow');
+    if(!row) return;
+    DRAG_HEX = row.dataset.id || null;
+    row.classList.add('dragging');
+    if(e.dataTransfer){
+      e.dataTransfer.effectAllowed = 'copy';
+      try { e.dataTransfer.setData('text/plain', '0x' + DRAG_HEX); } catch(_){}
+    }
+  });
+  outArea.addEventListener('dragend', e => {
+    const row = e.target.closest && e.target.closest('.idrow');
+    if(row) row.classList.remove('dragging');
+    DRAG_HEX = null;
+    document.querySelectorAll('.idgrid .drop-on').forEach(x => x.classList.remove('drop-on'));
+  });
+  // 键盘备选：聚焦某个 ID 行后按 1 / 2 / 3 分别填入物理 / 功能 / 响应
+  outArea.addEventListener('keydown', e => {
+    const row = e.target.closest && e.target.closest('.idrow');
+    if(!row) return;
+    const slot = { '1':'phys', '2':'func', '3':'resp' }[e.key];
+    if(!slot) return;
+    e.preventDefault();
+    applyId(row.dataset.id, slot);
+  });
+  // Alt+N 跳到下一条负响应
+  document.addEventListener('keydown', e => {
+    if(e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'n' || e.key === 'N')){
+      e.preventDefault();
+      jumpNrc();
+    }
+  });
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    document.getElementById('in-box').value = '';
+    FILE_FRAMES = null; FILE_INFO = null;
+    resetMsgWindowState();
+    document.getElementById('file-info').innerHTML = '';
+    document.getElementById('out-area').innerHTML = emptyBox('已清空');
+    document.getElementById('in-stat').textContent = '';
+  });
+  document.getElementById('btn-demo').addEventListener('click', () => {
+    setMode('isotp');
+    document.getElementById('in-box').value = DEMO;
+    renderDecode();
+  });
+
+  document.getElementById('in-box').addEventListener('keydown', e => {
+    if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); renderDecode(); }
+  });
+
+  // searches
+  document.getElementById('svc-search').addEventListener('input', e => renderServices(e.target.value));
+  document.getElementById('nrc-search').addEventListener('input', e => renderNRC(e.target.value));
+  document.getElementById('did-search').addEventListener('input', e => renderDID(e.target.value));
+  document.getElementById('rtn-search').addEventListener('input', e => renderRoutine(e.target.value));
+
+  renderServices('');
+  renderNRC('');
+  renderDID('');
+  renderRoutine('');
+  renderDTCStatus(null);
+  initDTC();
+  initParamRef();
+}
+
+if(typeof document !== 'undefined' && document.getElementById){
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+}
+</script>
+</body>
+</html>

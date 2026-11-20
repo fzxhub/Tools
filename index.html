@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark" data-mode="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>fzxhub · 工具箱</title>
+<meta name="description" content="fzxhub 开发工具箱：UDS 诊断、AES 加解密、内存字节对照、SHE 密钥灌装。纯前端离线运行。">
+<meta name="theme-color" content="#0b0410">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ff5b8d'/%3E%3Cstop offset='1' stop-color='%23ff2e78'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Ccircle cx='16' cy='16' r='5.2' fill='%23fff' opacity='.92'/%3E%3C/svg%3E">
+
+<script>
+/* 主题必须在首次绘制前落定，否则会先闪一下深色再跳亮色。
+   localStorage 在 file:// 或隐私模式下可能抛异常，一律 try 住。
+   三档：system（跟随系统）/ light / dark。 */
+(function () {
+  var r = document.documentElement, m = 'system';
+  try {
+    m = localStorage.getItem('fzxhub-theme') || 'system';
+    if (m !== 'light' && m !== 'dark' && m !== 'system') m = 'system';
+  } catch (e) { m = 'system'; }
+  var dark = m === 'dark' || (m !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  r.setAttribute('data-mode', m);
+  r.setAttribute('data-theme', dark ? 'dark' : 'light');
+  r.style.colorScheme = dark ? 'dark' : 'light';
+})();
+</script>
+
+<style>
+/* ============================================================
+   主题变量：只在这里定义一次，其余样式一律走 var()。
+   换主题 = 换 html[data-theme] 这一组值。
+   ============================================================ */
+:root{
+  --ease: cubic-bezier(.22,.61,.36,1);
+  --maxw: 1040px;
+  --pad: clamp(16px, 4vw, 32px);
+  --font: "Inter", "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei",
+          system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html[data-theme="dark"]{
+  --bg-solid:#0b0410;
+  --text:#f4f2f7;
+  --text-strong:#ffffff;
+  --dim:#a79fb4;
+  --dim2:#7b7288;
+  --line:rgba(255,255,255,.10);
+  --line-mid:rgba(255,255,255,.16);
+  --line-hi:rgba(255,255,255,.30);
+  --card:rgba(255,255,255,.05);
+  --card-hover:rgba(255,255,255,.085);
+  --shadow:0 20px 44px -20px rgba(0,0,0,.8);
+  --switch-bg:rgba(255,255,255,.07);
+  --switch-line:rgba(255,255,255,.14);
+  --knob:rgba(255,255,255,.15);
+  --hero-g:linear-gradient(180deg,#ffffff 0%,#ffd7e7 100%);
+  --grain:.14;
+  color-scheme: dark;
+}
+
+html[data-theme="light"]{
+  --bg-solid:#fff7fa;
+  --text:#2b1a25;
+  --text-strong:#150610;
+  --dim:#6d5b67;
+  --dim2:#8e7d89;
+  --line:rgba(45,10,32,.11);
+  --line-mid:rgba(45,10,32,.18);
+  --line-hi:rgba(45,10,32,.28);
+  --card:rgba(255,255,255,.62);
+  --card-hover:rgba(255,255,255,.9);
+  --shadow:0 20px 44px -24px rgba(130,25,65,.4);
+  --switch-bg:rgba(255,255,255,.58);
+  --switch-line:rgba(45,10,32,.12);
+  --knob:#ffffff;
+  --hero-g:linear-gradient(180deg,#2a0b1a 0%,#b0265f 100%);
+  --grain:.08;
+  color-scheme: light;
+}
+
+*,*::before,*::after{ box-sizing:border-box; }
+
+body{
+  margin:0;
+  min-height:100svh;
+  display:flex;
+  flex-direction:column;
+  font-family:var(--font);
+  background:var(--bg-solid);
+  color:var(--text);
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility;
+}
+
+/* ============================================================
+   背景：两层（深/浅）交叉淡入，改主题时是「渐隐」而不是硬切
+   ============================================================ */
+.bg{ position:fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none; }
+
+.bg-layer{
+  position:absolute; inset:0;
+  transition:opacity .55s ease;
+}
+.layer-dark{
+  opacity:1;
+  background:
+    radial-gradient(120% 66% at 50% 106%, #07020a 0%, rgba(7,2,10,.9) 34%, transparent 62%),
+    radial-gradient(72% 56% at 10% 6%, rgba(255,42,118,.42), transparent 62%),
+    radial-gradient(66% 54% at 90% 0%, rgba(124,56,255,.36), transparent 66%),
+    radial-gradient(105% 44% at 50% 57%, rgba(255,116,164,.26), transparent 74%),
+    linear-gradient(180deg,#0a0410 0%,#1c0722 36%,#35092c 60%,#190410 100%);
+}
+.layer-light{
+  opacity:0;
+  background:
+    radial-gradient(120% 60% at 50% 104%, rgba(255,214,228,.95) 0%, transparent 62%),
+    radial-gradient(72% 56% at 8% 4%, rgba(255,132,176,.55), transparent 64%),
+    radial-gradient(66% 54% at 92% 0%, rgba(186,150,255,.42), transparent 66%),
+    radial-gradient(100% 44% at 50% 58%, rgba(255,170,200,.5), transparent 74%),
+    linear-gradient(180deg,#fffafc 0%,#ffedf4 42%,#ffdce9 68%,#fff8fb 100%);
+}
+html[data-theme="light"] .layer-dark{ opacity:0; }
+html[data-theme="light"] .layer-light{ opacity:1; }
+
+/* 缓慢漂浮的光斑 */
+.orb{
+  position:absolute; border-radius:50%;
+  filter:blur(70px); opacity:.5;
+  animation:float 20s ease-in-out infinite alternate;
+}
+.orb.a{ width:44vmax; height:44vmax; left:-14vmax; top:-16vmax;
+        background:radial-gradient(circle,rgba(255,64,132,.55),transparent 66%); }
+.orb.b{ width:40vmax; height:40vmax; right:-12vmax; top:-10vmax; animation-delay:-8s;
+        background:radial-gradient(circle,rgba(134,72,255,.48),transparent 66%); }
+html[data-theme="light"] .orb{ opacity:.34; }
+@keyframes float{
+  from{ transform:translate3d(0,0,0) scale(1); }
+  to{ transform:translate3d(3vmax,4vmax,0) scale(1.08); }
+}
+
+/* 细颗粒，压住大色块的塑料感 */
+.grain{
+  position:absolute; inset:0; opacity:var(--grain);
+  mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+  background-size:180px 180px;
+}
+
+/* ============================================================
+   顶栏：左边品牌，右边只留主题三档开关
+   ============================================================ */
+.top{
+  position:fixed; top:0; left:0; right:0; z-index:20;
+  padding:18px 0;
+}
+.wrap{
+  width:100%; max-width:var(--maxw); margin:0 auto;
+  padding-inline:var(--pad);
+}
+.top-in{ display:flex; align-items:center; justify-content:space-between; gap:16px; }
+
+.brand{
+  display:inline-flex; align-items:center; gap:9px;
+  text-decoration:none; color:var(--text-strong);
+  font-size:15px; font-weight:600; letter-spacing:-.01em;
+}
+.brand .dot{
+  width:20px; height:20px; border-radius:50%;
+  background:radial-gradient(circle at 34% 28%, #ffb3cb 0%, #ff5b8d 40%, #f01e69 100%);
+  box-shadow:0 0 16px rgba(255,70,130,.55), inset 0 -2px 4px rgba(120,0,40,.35);
+  flex:none;
+}
+.brand:hover .dot{ box-shadow:0 0 22px rgba(255,70,130,.8); }
+.brand .dot{ transition:box-shadow .3s var(--ease); }
+
+/* 三档开关：等宽三格 + 滑动指示块 */
+.theme{
+  position:relative; display:grid; grid-template-columns:repeat(3,1fr);
+  padding:4px; border-radius:999px;
+  background:var(--switch-bg);
+  border:1px solid var(--switch-line);
+  -webkit-backdrop-filter:blur(14px) saturate(1.3);
+  backdrop-filter:blur(14px) saturate(1.3);
+  transition:background .35s ease, border-color .35s ease;
+}
+.theme .knob{
+  position:absolute; top:4px; left:4px;
+  width:calc((100% - 8px) / 3); height:calc(100% - 8px);
+  border-radius:999px; background:var(--knob);
+  transform:translateX(calc(var(--i,0) * 100%));
+  transition:transform .34s var(--ease), background .35s ease;
+  box-shadow:0 2px 10px rgba(0,0,0,.18);
+  pointer-events:none;
+}
+.theme button{
+  position:relative; z-index:1;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  padding:7px 13px; border:0; border-radius:999px;
+  background:none; color:var(--dim);
+  font:inherit; font-size:12.5px; line-height:1; cursor:pointer;
+  transition:color .25s ease;
+}
+.theme button:hover{ color:var(--text); }
+.theme button[aria-pressed="true"]{ color:var(--text-strong); }
+.theme button svg{ width:14px; height:14px; flex:none; }
+.theme button:focus-visible{
+  outline:2px solid rgba(255,110,160,.9);
+  outline-offset:2px;
+}
+
+/* ============================================================
+   主区
+   ============================================================ */
+main{
+  flex:1;
+  display:flex; flex-direction:column; justify-content:center;
+  padding:120px 0 40px;
+}
+
+.hero{ text-align:center; padding-inline:var(--pad); }
+.hero h1{
+  margin:0;
+  font-size:clamp(46px, 8.5vw, 82px);
+  line-height:1.02;
+  font-weight:600;
+  letter-spacing:-.035em;
+  background:var(--hero-g);
+  -webkit-background-clip:text; background-clip:text;
+  color:transparent;
+  filter:drop-shadow(0 10px 26px rgba(255,60,120,.16));
+}
+html[data-theme="light"] .hero h1{ filter:drop-shadow(0 10px 24px rgba(255,110,160,.28)); }
+
+.hero p{
+  margin:16px 0 0;
+  font-size:13.5px;
+  letter-spacing:.055em;
+  color:var(--dim);
+}
+
+.rule{
+  display:flex; align-items:center; justify-content:center; gap:12px;
+  width:min(430px, 78%); margin:34px auto 30px;
+}
+.rule::before, .rule::after{
+  content:""; flex:1; height:1px;
+  background:linear-gradient(90deg, transparent, var(--line-mid), transparent);
+}
+.rule i{
+  width:5px; height:5px; border-radius:50%;
+  background:var(--line-hi); flex:none;
+}
+
+/* 工具卡片：auto-fit 网格，加一行就自动换行铺开 */
+.tools{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(min(100%, 208px), 1fr));
+  gap:14px;
+  width:100%; max-width:var(--maxw);
+  margin:0 auto; padding-inline:var(--pad);
+}
+
+.card{
+  position:relative;
+  display:flex; flex-direction:column;
+  min-height:136px;
+  padding:18px 18px 17px;
+  border-radius:16px;
+  border:1px solid var(--line);
+  background:var(--card);
+  color:inherit; text-decoration:none;
+  overflow:hidden;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07);
+  -webkit-backdrop-filter:blur(14px) saturate(1.2);
+  backdrop-filter:blur(14px) saturate(1.2);
+  transition:transform .3s var(--ease), background .3s ease,
+             border-color .3s ease, box-shadow .3s ease;
+}
+.card::before{
+  content:""; position:absolute; inset:0; border-radius:inherit; z-index:0;
+  background:radial-gradient(120% 88% at 50% 0%, rgba(var(--tint), .22), transparent 64%);
+  opacity:0; transition:opacity .3s ease;
+}
+.card:hover{
+  transform:translateY(-4px);
+  background:var(--card-hover);
+  border-color:rgba(var(--tint), .5);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.1), var(--shadow), 0 0 0 1px rgba(var(--tint), .16);
+}
+.card:hover::before{ opacity:1; }
+.card:focus-visible{
+  outline:2px solid rgba(var(--tint), .85);
+  outline-offset:3px;
+}
+.card > *{ position:relative; z-index:1; }
+
+.ico{
+  display:grid; place-items:center;
+  width:38px; height:38px; border-radius:11px;
+  background:rgba(var(--tint), .14);
+  border:1px solid rgba(var(--tint), .28);
+  color:rgb(var(--tint));
+  transition:background .3s ease, border-color .3s ease;
+}
+.card:hover .ico{ background:rgba(var(--tint), .22); border-color:rgba(var(--tint), .45); }
+.ico svg{ width:19px; height:19px; }
+html[data-theme="light"] .ico svg{ filter:brightness(.76) saturate(1.35); }
+
+.meta{ margin-top:auto; padding-top:16px; }
+.name{
+  margin:0;
+  font-size:14.5px; font-weight:600; letter-spacing:.005em;
+  color:var(--text-strong);
+}
+.desc{
+  margin:6px 0 0;
+  /* 固定两行高度：一条和两条说明的卡片，标题基线才对得齐 */
+  min-height:3.2em;
+  font-size:11.8px; line-height:1.6;
+  color:var(--dim);
+}
+
+.arrow{
+  position:absolute; top:17px; right:15px; z-index:1;
+  width:16px; height:16px; color:var(--dim2);
+  opacity:0; transform:translate(-4px, 4px);
+  transition:opacity .3s ease, transform .3s var(--ease);
+}
+.card:hover .arrow, .card:focus-visible .arrow{
+  opacity:1; transform:none; color:rgb(var(--tint));
+}
+
+footer{
+  padding:26px 16px 26px;
+  text-align:center;
+  font-size:11.5px; letter-spacing:.055em;
+  color:var(--dim2);
+}
+
+/* ============================================================
+   响应式
+   ============================================================ */
+@media (max-width:560px){
+  .theme button span{ display:none; }
+  .theme button{ padding:8px 14px; }
+  main{ padding-top:104px; }
+  .card{ min-height:0; }
+  .meta{ padding-top:14px; }
+}
+@media (prefers-reduced-motion:reduce){
+  *{ animation:none !important; transition:none !important; }
+}
+</style>
+</head>
+
+<body>
+
+<div class="bg" aria-hidden="true">
+  <div class="bg-layer layer-light"></div>
+  <div class="bg-layer layer-dark"></div>
+  <div class="orb a"></div>
+  <div class="orb b"></div>
+  <div class="grain"></div>
+</div>
+
+<header class="top">
+  <div class="wrap top-in">
+    <a class="brand" href="./" aria-label="fzxhub 首页">
+      <span class="dot"></span>
+      <span>fzxhub</span>
+    </a>
+
+    <div class="theme" id="theme" role="group" aria-label="主题切换">
+      <span class="knob" aria-hidden="true"></span>
+      <button type="button" data-mode="system" aria-pressed="true" title="跟随系统">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2.5" y="3.5" width="19" height="13" rx="2"/><path d="M8.5 20.5h7M12 16.5v4"/>
+        </svg><span>系统</span>
+      </button>
+      <button type="button" data-mode="light" aria-pressed="false" title="明亮">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.4M12 19.4v2.4M2.2 12h2.4M19.4 12h2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7"/>
+        </svg><span>明亮</span>
+      </button>
+      <button type="button" data-mode="dark" aria-pressed="false" title="暗黑">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20.5 14.4A8.6 8.6 0 1 1 9.6 3.5a6.9 6.9 0 0 0 10.9 10.9z"/>
+        </svg><span>暗黑</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <h1>fzxhub</h1>
+    <p>开发工具箱</p>
+  </section>
+
+  <div class="rule" aria-hidden="true"><i></i></div>
+
+  <nav class="tools" id="tools" aria-label="工具列表"></nav>
+</main>
+
+<footer>
+  © 2026 fzxhub 版权归冯宗兴所有
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ==========================================================
+     工具清单
+     ----------------------------------------------------------
+     新增工具只需在下面数组里加一条，卡片会自动排版、数量自动更新。
+       name  卡片标题
+       file  相对路径（与本文件同目录即可）
+       desc  一句话说明
+       tint  强调色，r,g,b 三元组（用于 rgba()）
+       icon  ICONS 里的键名：uds / aes / mem / key / pulse / box
+     ========================================================== */
+  var ICONS = {
+    uds: '<path d="M2.5 12h3.6l2.1-5.4 3.2 10.8 2.3-6.6 1.9 3.2h5.9"/>',
+    aes: '<rect x="4.2" y="10.2" width="15.6" height="10.6" rx="2.4"/><path d="M8 10.2V7.4a4 4 0 0 1 8 0v2.8"/><path d="M12 14.4v2.4"/>',
+    mem: '<rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 2.8v2.6M14 2.8v2.6M10 18.6v2.6M14 18.6v2.6M2.8 10h2.6M2.8 14h2.6M18.6 10h2.6M18.6 14h2.6"/>',
+    key: '<circle cx="8.4" cy="8.4" r="4.3"/><path d="M11.4 11.4 20 20"/><path d="M16.4 16.4l1.9-1.9M19 19.1l1.9-1.9"/>',
+    pulse: '<path d="M3 12h3.4l2-5.6 3.4 11.2 2.2-5.6h6"/>',
+    box: '<path d="M20.5 8.2v7.6L12 20.6 3.5 15.8V8.2L12 3.4z"/><path d="M3.5 8.2 12 13l8.5-4.8M12 13v7.6"/>'
+  };
+
+  var TOOLS = [
+    {
+      name: 'UDS 诊断工具箱',
+      file: 'UDSToolbox.html',
+      desc: '单帧 / 多帧 / 流控帧解析，NRC 与 DID 速查',
+      tint: '88,166,255',
+      icon: 'uds'
+    },
+    {
+      name: 'AES 工具箱',
+      file: 'AESToolbox.html',
+      desc: 'ECB / CBC / CTR / GCM / CMAC 计算与标准向量自检',
+      tint: '63,185,120',
+      icon: 'aes'
+    },
+    {
+      name: 'MemoryViewer',
+      file: 'MemoryViewer.html',
+      desc: '数值 ⇄ 内存字节，大小端与浮点逐字节对照',
+      tint: '188,140,255',
+      icon: 'mem'
+    },
+    {
+      name: 'SHE 密钥灌装',
+      file: 'SHECalculator.html',
+      desc: 'M1–M5 完整计算过程，逐步展开',
+      tint: '240,160,60',
+      icon: 'key'
+    }
+    /* 例：
+    ,{ name: '新工具', file: 'NewTool.html', desc: '一句话说明', tint: '34,211,238', icon: 'box' }
+    */
+  ];
+
+
+  /* ---------------- 主题三档 ---------------- */
+  var KEY = 'fzxhub-theme';
+  var root = document.documentElement;
+  var group = document.getElementById('theme');
+  var media = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
+  var ORDER = ['system', 'light', 'dark'];
+
+  function isDark(mode) {
+    return mode === 'dark' || (mode === 'system' && media && media.matches);
+  }
+
+  function applyTheme(mode, persist) {
+    if (ORDER.indexOf(mode) < 0) mode = 'system';
+    var theme = isDark(mode) ? 'dark' : 'light';
+    root.setAttribute('data-mode', mode);
+    root.setAttribute('data-theme', theme);
+    root.style.colorScheme = theme;
+
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#0b0410' : '#fff7fa');
+
+    if (group) {
+      group.style.setProperty('--i', ORDER.indexOf(mode));
+      var btns = group.querySelectorAll('button[data-mode]');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].setAttribute('aria-pressed', btns[i].dataset.mode === mode ? 'true' : 'false');
+      }
+    }
+    if (persist) { try { localStorage.setItem(KEY, mode); } catch (e) {} }
+  }
+
+  function readMode() {
+    try {
+      var v = localStorage.getItem(KEY);
+      return ORDER.indexOf(v) >= 0 ? v : 'system';
+    } catch (e) { return 'system'; }
+  }
+
+  if (group) {
+    group.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('button[data-mode]') : null;
+      if (btn) applyTheme(btn.dataset.mode, true);
+    });
+  }
+
+  if (media) {
+    var onSys = function () { if (root.getAttribute('data-mode') === 'system') applyTheme('system', false); };
+    if (media.addEventListener) media.addEventListener('change', onSys);
+    else if (media.addListener) media.addListener(onSys);
+  }
+
+  applyTheme(readMode(), false);
+
+
+  /* ---------------- 渲染工具卡片 ---------------- */
+  function card(t) {
+    var a = document.createElement('a');
+    a.className = 'card';
+    a.href = t.file;
+    a.style.setProperty('--tint', t.tint || '255,90,140');
+
+    var ico = document.createElement('span');
+    ico.className = 'ico';
+    ico.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+                    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                    (ICONS[t.icon] || ICONS.box) + '</svg>';
+
+    var meta = document.createElement('div');
+    meta.className = 'meta';
+    var h = document.createElement('h2');
+    h.className = 'name';
+    h.textContent = t.name;
+    var p = document.createElement('p');
+    p.className = 'desc';
+    p.textContent = t.desc;
+    meta.appendChild(h);
+    meta.appendChild(p);
+
+    var arrow = document.createElement('span');
+    arrow.className = 'arrow';
+    arrow.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+                      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                      '<path d="M7 17 17 7M9 7h8v8"/></svg>';
+
+    a.appendChild(ico);
+    a.appendChild(meta);
+    a.appendChild(arrow);
+    return a;
+  }
+
+  var box = document.getElementById('tools');
+  if (box) {
+    var frag = document.createDocumentFragment();
+    for (var j = 0; j < TOOLS.length; j++) frag.appendChild(card(TOOLS[j]));
+    box.appendChild(frag);
+  }
+})();
+</script>
+
+</body>
+</html>

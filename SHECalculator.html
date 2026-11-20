@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SHE 密钥灌装 M1–M5 完整计算过程（逐步展开）</title>
+<script>
+/* 主题：先把 data-theme 定下来，免得亮色系统里先闪一下黑底 */
+(function(){
+  var m='system';
+  try{ m=localStorage.getItem('sheTraceTheme')||'system'; }catch(e){}
+  var dark = m==='dark' || (m!=='light' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.setAttribute('data-theme', dark?'dark':'light');
+  document.documentElement.setAttribute('data-mode', m);
+})();
+</script>
+<style>
+:root{
+  /* 主题与字号总开关 */
+  --fs:1.15;
+  color-scheme:dark;
+  --bg:#0e1116; --panel:#151a21; --sunken:#0b0e13; --panel2:#0f141b; --hover:#131a23;
+  --btn:#1d2530; --btnh:#26313f;
+  --line:#232a35; --line2:#1b222c; --line3:#2b3442; --line4:#3a4757;
+  --tx:#e6e9ef; --tx-strong:#dfe5ee; --tx2:#c9d2e0; --tx3:#a8b3c4; --tx4:#9aa6b6;
+  --dim:#8b96a8; --dim2:#7c8798; --dim3:#6f7c8e; --faint:#5f6b7c;
+  --off:#4d586a; --off2:#4a5361; --ghost:#39424f; --iv:#8f9aab;
+  --blue:#3d7eff; --blue2:#7db4ff; --blue3:#9fc7ff; --blue-fg:#cfe2ff;
+  --blue-bg:#173a63; --blue-bg2:#12293f; --blue-bd:#2c5c94; --blue-bg3:#1c4a7d;
+  --grn:#5fe0c0; --grn2:#2ec4a6; --grn-bg:#062420; --grn-bd:#2e6b5c; --grn-bg2:#0d3229; --grn-dim:#7fae9f;
+  --amb:#f0a020; --amb2:#e0b44a; --amb-bd:#a07a18; --amb-bg:#231a06; --amb-bg2:#221a06; --amb3:#f0c040; --amb4:#8a6a18;
+  --red:#ef8a80; --red-bg:#2a1113; --vio:#a78bfa;
+}
+:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:#f3f6fb; --panel:#ffffff; --sunken:#f5f8fc; --panel2:#eef3fa; --hover:#e9eff8;
+  --btn:#e8edf6; --btnh:#dbe3ef;
+  --line:#d5deea; --line2:#e5ebf4; --line3:#ccd6e4; --line4:#b7c3d5;
+  --tx:#101a28; --tx-strong:#0a1320; --tx2:#22303f; --tx3:#38485c; --tx4:#4f5f76;
+  --dim:#5a6879; --dim2:#63728a; --dim3:#5f6e82; --faint:#59687e;
+  --off:#8b98ab; --off2:#97a4b6; --ghost:#b3bfcf; --iv:#7d8a9c;
+  --blue:#2563eb; --blue2:#1d4ed8; --blue3:#1e40af; --blue-fg:#0b3aa5;
+  --blue-bg:#dce8ff; --blue-bg2:#e6efff; --blue-bd:#a9c6f2; --blue-bg3:#cfe0fb;
+  --grn:#0a8f68; --grn2:#0b8a66; --grn-bg:#e1f6ef; --grn-bd:#86c9b4; --grn-bg2:#e8f8f2; --grn-dim:#2f8f74;
+  --amb:#a86200; --amb2:#8f5f08; --amb-bd:#d8ae5e; --amb-bg:#fdf3dd; --amb-bg2:#fbf0d8; --amb3:#8a5a05; --amb4:#a9822e;
+  --red:#c0392b; --red-bg:#fdecea; --vio:#6b46d6;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:ui-sans-serif,system-ui,"Segoe UI","Microsoft YaHei",sans-serif;font-size:calc(14px * var(--fs));line-height:1.62}
+.wrap{max-width:1320px;margin:0 auto;padding:26px 20px 120px}
+h1{font-size:calc(20px * var(--fs));font-weight:600;margin:0 0 6px}
+.sub{color:var(--dim);font-size:calc(13px * var(--fs));margin-bottom:18px;line-height:1.8}
+code{background:var(--sunken);border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--tx2);font-family:ui-monospace,Consolas,monospace;font-size:calc(11.5px * var(--fs))}
+
+/* 顶部工具条 */
+button{background:var(--btn);border:1px solid var(--line3);color:var(--tx2);border-radius:7px;padding:6px 11px;font-size:calc(12px * var(--fs));cursor:pointer;font-family:inherit;white-space:nowrap}
+button:hover{background:var(--btnh);border-color:var(--line4)}
+button.primary{background:var(--blue-bg);border-color:var(--blue-bd);color:var(--blue-fg)}
+button.primary:hover{background:var(--blue-bg3)}
+
+/* 主题切换 */
+.head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 0 6px}
+.head h1{margin:0}
+.themebar{display:flex;align-items:center;gap:9px}
+.themebar .tl{font-size:calc(11px * var(--fs));color:var(--faint);font-family:ui-monospace,Consolas,monospace}
+.seg{display:inline-flex;background:var(--btn);border:1px solid var(--line3);border-radius:9px;padding:2px;gap:2px}
+.seg button{background:transparent;border:0;color:var(--dim);padding:4px 12px;border-radius:7px;font-size:calc(11.5px * var(--fs));line-height:1.5}
+.seg button:hover{background:var(--btnh);color:var(--tx2);border-color:transparent}
+.seg button.on{background:var(--blue-bg);color:var(--blue3);font-weight:600}
+
+/* 卡片 */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+.card.hd{padding:14px 18px}
+.card h2{font-size:calc(14px * var(--fs));font-weight:600;margin:0 0 4px;color:var(--tx);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card h2 .n{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:22px;padding:0 6px;border-radius:6px;background:var(--blue-bg);color:var(--blue3);font-family:ui-monospace,Consolas,monospace;font-size:calc(12px * var(--fs));font-weight:600}
+.card h2 .tag{font-size:calc(10.5px * var(--fs));padding:1px 7px;border-radius:4px;background:var(--btn);color:var(--dim);font-weight:400;font-family:ui-monospace,Consolas,monospace}
+.card h2 .tag.blue{background:var(--blue-bg2);color:var(--blue2)}
+.card h2 .tag.grn{background:var(--grn-bg);color:var(--grn2)}
+.card h2 .tag.amb{background:var(--amb-bg2);color:var(--amb2)}
+.formula{font-family:ui-monospace,Consolas,monospace;font-size:calc(12px * var(--fs));color:var(--tx3);background:var(--sunken);border:1px solid var(--line2);border-left:2px solid var(--blue);border-radius:0 6px 6px 0;padding:8px 12px;margin:10px 0 14px;word-break:break-word;line-height:1.9}
+.formula b{color:var(--blue3);font-weight:500}
+.formula .w{color:var(--amb2)}
+p.note{font-size:calc(12.5px * var(--fs));color:var(--dim);margin:0 0 10px;line-height:1.85}
+p.note b{color:var(--tx2);font-weight:500}
+p.note em{color:var(--amb2);font-style:normal}
+
+/* XOR 阶梯 */
+.ladder{font-family:ui-monospace,Consolas,monospace;font-size:calc(12px * var(--fs));margin:8px 0 12px}
+.lrow{display:grid;grid-template-columns:20px 210px 1fr;gap:10px;align-items:baseline;padding:3px 0}
+.lrow .op{color:var(--faint);text-align:center}
+.lrow .lbl{color:var(--dim);font-size:calc(11.5px * var(--fs))}
+.lrow .hx{color:var(--tx2);letter-spacing:.08em;word-break:break-all}
+.lrow.res .lbl{color:var(--blue3)}
+.lrow.res .hx{color:var(--grn);font-weight:500}
+.lrow.k .hx{color:var(--amb)}
+.lrow.p .hx{color:var(--tx2)}
+.lrow.iv .hx{color:var(--iv)}
+.lsep{height:1px;background:var(--line);margin:5px 0 5px 30px}
+
+/* 字节格 */
+.bytes{display:grid;grid-template-columns:repeat(16,1fr);gap:3px;margin:8px 0 4px}
+.bytes .b{background:var(--sunken);border:1px solid var(--line);border-radius:5px;padding:6px 0 4px;text-align:center;font-family:ui-monospace,Consolas,monospace;font-size:calc(11.5px * var(--fs));color:var(--dim)}
+.bytes .b i{display:block;font-style:normal;font-size:calc(9px * var(--fs));color:var(--ghost);margin-top:2px}
+.bytes .b.hl{background:var(--amb-bg);border-color:var(--amb-bd);color:var(--amb3)}
+.bytes .b.hl i{color:var(--amb4)}
+.bytes .b.bl{background:var(--blue-bg2);border-color:var(--blue-bd);color:var(--blue3)}
+.bytes .b.gn{background:var(--grn-bg2);border-color:var(--grn-bd);color:var(--grn)}
+.legend{font-size:calc(11px * var(--fs));color:var(--dim3);margin:2px 0 12px;display:flex;gap:14px;flex-wrap:wrap}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:middle}
+
+/* 位串 */
+.bits{font-family:ui-monospace,Consolas,monospace;font-size:calc(11px * var(--fs));line-height:1.9;background:var(--sunken);border:1px solid var(--line2);border-radius:7px;padding:9px 11px;margin:8px 0 4px;word-break:break-all}
+.bits i{font-style:normal;color:var(--ghost)}
+.bits i.g1{color:var(--blue2)}
+.bits i.g2{color:var(--vio)}
+.bits i.g3{color:var(--amb)}
+.bits i.g4{color:var(--grn)}
+.bits i.sp{padding-left:7px}
+
+/* AES 展开 */
+details.aes{margin:10px 0 4px;border:1px solid var(--line2);border-radius:8px;background:var(--panel2);overflow:hidden}
+details.aes>summary{cursor:pointer;font-size:calc(11.5px * var(--fs));color:var(--blue2);padding:8px 12px;list-style:none;user-select:none}
+details.aes>summary::-webkit-details-marker{display:none}
+details.aes>summary:before{content:"▸ ";color:var(--blue)}
+details.aes[open]>summary:before{content:"▾ "}
+details.aes>summary:hover{background:var(--hover)}
+.aesbody{padding:4px 12px 12px;border-top:1px solid var(--line2)}
+.round{margin:8px 0}
+.rh{font-size:calc(10.5px * var(--fs));color:var(--dim3);font-family:ui-monospace,Consolas,monospace;margin-bottom:3px}
+.rr{display:grid;grid-template-columns:44px 1fr;gap:8px;font-family:ui-monospace,Consolas,monospace;font-size:calc(11px * var(--fs));line-height:1.85}
+.rr .k{color:var(--faint)}
+.rr .v{color:var(--tx3);letter-spacing:.06em}
+.rr.ark .v{color:var(--grn)}
+.rr.rk .v{color:var(--amb)}
+
+/* 表 */
+table{width:100%;border-collapse:collapse;font-size:calc(11.5px * var(--fs))}
+th,td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--line2);vertical-align:top}
+th{color:var(--dim2);font-weight:500;font-size:calc(10.5px * var(--fs));background:var(--panel2)}
+td.mono,th.mono{font-family:ui-monospace,Consolas,monospace;letter-spacing:.05em}
+td.hit{color:var(--grn)}
+td.no{color:var(--red)}
+.tblwrap{border:1px solid var(--line2);border-radius:8px;overflow:auto}
+.ok{display:inline-block;font-size:calc(10px * var(--fs));padding:1px 6px;border-radius:4px;background:var(--grn-bg);color:var(--grn2);font-family:ui-monospace,Consolas,monospace;white-space:nowrap}
+.bad{display:inline-block;font-size:calc(10px * var(--fs));padding:1px 6px;border-radius:4px;background:var(--red-bg);color:var(--red);font-family:ui-monospace,Consolas,monospace;white-space:nowrap}
+
+/* 结果总览 */
+.resrow{display:grid;grid-template-columns:78px 1fr;gap:12px;align-items:start;background:var(--sunken);border:1px solid var(--line2);border-left:2px solid var(--grn-bd);border-radius:0 8px 8px 0;padding:9px 12px;margin-bottom:7px}
+.resrow .rnm{font-family:ui-monospace,Consolas,monospace;font-size:calc(13.5px * var(--fs));font-weight:600;color:var(--grn);line-height:1.5}
+.resrow .rnm span{display:block;font-weight:400;font-size:calc(9.5px * var(--fs));color:var(--faint);letter-spacing:0}
+.resrow .rv{font-family:ui-monospace,Consolas,monospace;font-size:calc(12px * var(--fs));color:var(--tx-strong);letter-spacing:.07em;word-break:break-all;line-height:1.7;user-select:all}
+.resrow .rf{font-size:calc(10.5px * var(--fs));color:var(--dim3);margin-top:3px;line-height:1.6}
+.resrow .rf b{color:var(--tx4);font-weight:400}
+.resrow.k{border-left-color:var(--amb-bd)}
+.resrow.k .rnm{color:var(--amb)}
+.rlab{font-size:calc(10.5px * var(--fs));color:var(--faint);font-family:ui-monospace,Consolas,monospace;margin:14px 0 8px;padding-top:12px;border-top:1px dashed var(--line)}
+.resmini{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.resmini .resrow{grid-template-columns:52px 1fr;margin:0}
+.resmini .rv{font-size:calc(11px * var(--fs))}
+
+/* 标志位芯片 */
+.flags{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-top:11px}
+.fchip{background:var(--sunken);border:1px solid var(--line);border-radius:8px;padding:7px 9px 8px;cursor:pointer;user-select:none}
+.fchip:hover{border-color:var(--line4)}
+.fchip .fh{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+.fchip .fn{font-family:ui-monospace,Consolas,monospace;font-size:calc(11.5px * var(--fs));font-weight:600;color:var(--dim)}
+.fchip .fv{font-family:ui-monospace,Consolas,monospace;font-size:calc(11px * var(--fs));color:var(--off)}
+.fchip .fd{font-size:calc(10px * var(--fs));color:var(--faint);line-height:1.55;margin-top:4px}
+.fchip.on{background:var(--grn-bg);border-color:var(--grn-bd)}
+.fchip.on .fn,.fchip.on .fv{color:var(--grn)}
+.fchip.on .fd{color:var(--grn-dim)}
+.fchip.mute .fd{color:var(--off2)}
+.fchip.vo{border-style:dashed}
+
+/* 参数 */
+.grid{display:grid;gap:9px}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g6{grid-template-columns:repeat(6,1fr)}
+label{display:block;font-size:calc(10.5px * var(--fs));color:var(--dim);margin-bottom:3px;font-family:ui-monospace,Consolas,monospace}
+input[type=text],input[type=number],select{background:var(--sunken);border:1px solid var(--line3);color:var(--tx);border-radius:6px;padding:6px 8px;width:100%;font-family:ui-monospace,Consolas,monospace;font-size:calc(11.5px * var(--fs))}
+input:focus,select:focus{outline:none;border-color:var(--blue)}
+
+/* 纯文本导出 */
+
+@media(max-width:900px){.g4,.g6{grid-template-columns:1fr 1fr}.lrow{grid-template-columns:18px 130px 1fr}.bytes{grid-template-columns:repeat(8,1fr)}.resmini{grid-template-columns:1fr}.flags{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="head">
+  <h1>SHE 密钥灌装：M1–M5 完整计算过程</h1>
+  <div class="themebar">
+    <span class="tl">主题</span>
+    <div class="seg" id="segTheme">
+      <button type="button" data-mode="system">随系统</button>
+      <button type="button" data-mode="light">明亮</button>
+      <button type="button" data-mode="dark">暗黑</button>
+    </div>
+  </div>
+</div>
+<div class="sub">
+  用一个真实向量把每一步算到底：<b>每次 AES 的输入输出、每次异或的三个操作数、每块明文的位布局</b>都摊开写；
+  标「展开」的地方可以继续钻到 AES 内部 11 轮的四步状态（SubBytes / ShiftRows / MixColumns / AddRoundKey）。
+  全部数值由页面现算。
+</div>
+
+<!-- 参数 -->
+<div class="card hd">
+  <h2><span class="n">参数</span><span class="tag">改了会立刻重算全过程</span></h2>
+  <div class="grid g4" style="margin-top:10px">
+    <div><label>UID (15 B)</label><input id="p_uid" type="text"></div>
+    <div><label>AUTHKEY (16 B)</label><input id="p_auth" type="text"></div>
+    <div><label>NEWKEY (16 B)</label><input id="p_new" type="text"></div>
+    <div><label>KEYID / AUTHID</label>
+      <div style="display:flex;gap:6px"><input id="p_kid" type="number" min="0" max="15"><input id="p_aid" type="number" min="0" max="15"></div>
+    </div>
+  </div>
+  <div class="grid g4" style="margin-top:9px">
+    <div><label>CID / counter</label><input id="p_cid" type="number" min="0"></div>
+    <div><label>标志位打包值（0–31）</label><input id="p_flags" type="number" min="0" max="31"></div>
+    <div><label>VERIFY_ONLY</label><select id="p_vo"><option value="0">0</option><option value="1">1</option></select></div>
+    <div><label>M2 首块排布</label>
+      <select id="p_layout">
+        <option value="L1">L1 · 5 位 flags + 0×95</option>
+        <option value="L2">L2 · 6 位，VO 在末尾</option>
+        <option value="L3">L3 · 6 位，VO 在最高位</option>
+      </select>
+    </div>
+  </div>
+  <div id="flagsBody"></div>
+</div>
+
+<!-- 结果总览 -->
+<div class="card" id="results">
+  <h2><span class="n">结果</span>M1–M5 计算结果<span class="tag grn">随参数实时刷新</span></h2>
+  <div id="resBody"></div>
+</div>
+
+<!-- 步骤容器 -->
+<div id="steps"></div>
+
+<div style="text-align:center;color:var(--ghost);font-size:calc(11px * var(--fs));margin-top:22px">
+  规范依据：HIS-SHE 1.1 §3.3 / NXP AN5401 App.A / ST AN4240 App.A.1；AES-128 按 FIPS-197，CMAC 按 NIST SP 800-38B。
+</div>
+
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ================== AES-128 基础（FIPS-197） ================== */
+function gmul(a,b){let p=0;for(let i=0;i<8;i++){if(b&1)p^=a;const hi=a&0x80;a=(a<<1)&0xff;if(hi)a^=0x1b;b>>=1;}return p;}
+function ginv(a){if(a===0)return 0;for(let x=1;x<256;x++)if(gmul(a,x)===1)return x;return 0;}
+function rotl8(x,n){return ((x<<n)|(x>>(8-n)))&0xff;}
+const SBOX=new Uint8Array(256);
+for(let i=0;i<256;i++){const b=ginv(i);SBOX[i]=(b^rotl8(b,1)^rotl8(b,2)^rotl8(b,3)^rotl8(b,4)^0x63)&0xff;}
+const RCON=[0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80,0x1b,0x36];
+
+function expandKey(key){
+  const w=[];
+  for(let i=0;i<4;i++)w.push([key[4*i],key[4*i+1],key[4*i+2],key[4*i+3]]);
+  for(let i=4;i<44;i++){
+    let t=w[i-1].slice();
+    if(i%4===0){ t=[SBOX[t[1]],SBOX[t[2]],SBOX[t[3]],SBOX[t[0]]]; t[0]^=RCON[(i/4)-1]; }
+    w.push([w[i-4][0]^t[0],w[i-4][1]^t[1],w[i-4][2]^t[2],w[i-4][3]^t[3]]);
+  }
+  const rk=[];
+  for(let r=0;r<11;r++){
+    const k=new Uint8Array(16);
+    for(let c=0;c<4;c++)for(let rr=0;rr<4;rr++)k[4*c+rr]=w[4*r+c][rr];
+    rk.push(k);
+  }
+  return rk;
+}
+
+/* 带完整轨迹的加密：记录每轮的 SubBytes / ShiftRows / MixColumns / AddRoundKey 状态 */
+function traceEncrypt(rk,input){
+  const rounds=[];
+  let s=new Uint8Array(16);
+  for(let i=0;i<16;i++)s[i]=input[i]^rk[0][i];
+  rounds.push({r:0,ark:s.slice()});
+  for(let r=1;r<=10;r++){
+    const sb=new Uint8Array(16);
+    for(let i=0;i<16;i++)sb[i]=SBOX[s[i]];
+    const sr=sb.slice();
+    for(let row=1;row<4;row++)for(let col=0;col<4;col++)sr[row+4*col]=sb[row+4*((col+row)%4)];
+    let mc=null;
+    if(r!==10){
+      mc=new Uint8Array(16);
+      for(let c=0;c<4;c++){
+        const a0=sr[0+4*c],a1=sr[1+4*c],a2=sr[2+4*c],a3=sr[3+4*c];
+        mc[0+4*c]=gmul(a0,2)^gmul(a1,3)^a2^a3;
+        mc[1+4*c]=a0^gmul(a1,2)^gmul(a2,3)^a3;
+        mc[2+4*c]=a0^a1^gmul(a2,2)^gmul(a3,3);
+        mc[3+4*c]=gmul(a0,3)^a1^a2^gmul(a3,2);
+      }
+    }
+    const pre=mc||sr;
+    const ark=new Uint8Array(16);
+    for(let i=0;i<16;i++)ark[i]=pre[i]^rk[r][i];
+    rounds.push({r,sb,sr,mc,ark});
+    s=ark;
+  }
+  return {rounds,out:s,input:new Uint8Array(input)};
+}
+const Z16=new Uint8Array(16);
+function xor2(a,b){const o=new Uint8Array(16);for(let i=0;i<16;i++)o[i]=a[i]^b[i];return o;}
+function xor3(a,b,c){const o=new Uint8Array(16);for(let i=0;i<16;i++)o[i]=a[i]^b[i]^c[i];return o;}
+function cat(a,b){const o=new Uint8Array(a.length+b.length);o.set(a,0);o.set(b,a.length);return o;}
+function dbl(b){
+  const out=new Uint8Array(16); let carry=0;
+  for(let i=15;i>=0;i--){const v=(b[i]<<1)|carry;out[i]=v&0xff;carry=(v>>8)&1;}
+  if(b[0]&0x80)out[15]^=0x87;
+  return out;
+}
+
+/* ---- KDF：AES-MP(K‖C)，两块 ---- */
+function kdfTrace(K,C,labelK,labelC){
+  const steps=[]; let h=Z16.slice();
+  const xs=[[labelK,K],[labelC,C]];
+  for(let i=0;i<2;i++){
+    const t=traceEncrypt(expandKey(h),xs[i][1]);
+    const out=xor3(t.out,xs[i][1],h);
+    steps.push({key:h.slice(),x:xs[i][1],label:xs[i][0],aes:t,out});
+    h=out;
+  }
+  return {steps,out:h};
+}
+
+/* ---- CBC 加密（整块）---- */
+function cbcTrace(K,data,iv){
+  const rk=expandKey(K); const blocks=[]; let prev=iv.slice();
+  const all=new Uint8Array(data.length);
+  for(let i=0;i<data.length;i+=16){
+    const plain=data.slice(i,i+16);
+    const xored=xor2(plain,prev);
+    const t=traceEncrypt(rk,xored);
+    blocks.push({plain,prev:prev.slice(),xored,aes:t,out:t.out});
+    all.set(t.out,i);
+    prev=t.out;
+  }
+  return {blocks,out:all};
+}
+
+/* ---- CMAC（NIST SP 800-38B）---- */
+function cmacTrace(K,msg){
+  const rk=expandKey(K);
+  const t0=traceEncrypt(rk,Z16);          // L = AES_K(0)
+  const L=t0.out;
+  const sub1=dbl(L), sub2=dbl(sub1);
+  const n=Math.max(1,Math.ceil(msg.length/16));
+  const complete=msg.length>0&&msg.length%16===0;
+  const raw=[];
+  for(let i=0;i<n;i++){const b=new Uint8Array(16);b.set(msg.slice(i*16,(i+1)*16));raw.push(b);}
+  const lastIdx=n-1;
+  const lastUsed=xor2(raw[lastIdx],complete?sub1:sub2);
+  let x=Z16.slice(); const chain=[];
+  for(let i=0;i<n;i++){
+    const blk=(i===lastIdx)?lastUsed:raw[i];
+    const xored=xor2(x,blk);
+    const t=traceEncrypt(rk,xored);
+    chain.push({i,blk,prev:x.slice(),xored,aes:t,out:t.out});
+    x=t.out;
+  }
+  return {L,t0,sub1,sub2,n,complete,raw,lastUsed,chain,out:x};
+}
+
+/* ---- 位打包 ---- */
+function bitsToBytes(bits){const o=new Uint8Array(bits.length/8);for(let i=0;i<o.length;i++)o[i]=parseInt(bits.slice(i*8,i*8+8),2);return o;}
+function buildM2Bits(cid,flags,vo,layout){
+  const c=(cid>>>0).toString(2).padStart(28,'0');
+  const f=(flags&0x1F).toString(2).padStart(5,'0');
+  const v=vo?'1':'0';
+  if(layout==='L3') return c+v+f+'0'.repeat(94);
+  if(layout==='L2') return c+f+v+'0'.repeat(94);
+  return c+f+'0'.repeat(95);
+}
+function buildP4Bits(cid){return (cid>>>0).toString(2).padStart(28,'0')+'1'+'0'.repeat(99);}
+function buildM1(uid,kid,aid){
+  const m=new Uint8Array(16); m.set(uid.slice(0,15),0);
+  m[15]=((kid&0x0F)<<4)|(aid&0x0F);
+  return m;
+}
+
+/* ---- 全流程 ---- */
+function runAll(p){
+  const m1=buildM1(p.uid,p.kid,p.aid);
+  const K1=kdfTrace(p.auth,C_ENC,'X₁ = AUTHKEY','X₂ = KEY_UPDATE_ENC_C');
+  const K2=kdfTrace(p.auth,C_MAC,'X₁ = AUTHKEY','X₂ = KEY_UPDATE_MAC_C');
+  const p2bits=buildM2Bits(p.cid,p.flags,p.vo,p.layout);
+  const p2=bitsToBytes(p2bits);
+  const m2=cbcTrace(K1.out,cat(p2,p.newk),Z16);
+  const m3=cmacTrace(K2.out,cat(m1,m2.out));
+  const K3=kdfTrace(p.newk,C_ENC,'X₁ = NEWKEY','X₂ = KEY_UPDATE_ENC_C');
+  const K4=kdfTrace(p.newk,C_MAC,'X₁ = NEWKEY','X₂ = KEY_UPDATE_MAC_C');
+  const p4bits=buildP4Bits(p.cid);
+  const p4=bitsToBytes(p4bits);
+  const m4star=traceEncrypt(expandKey(K3.out),p4);
+  const m4=cat(m1,m4star.out);
+  const m5=cmacTrace(K4.out,m4);
+  return {m1,K1,K2,p2bits,p2,m2,m3,K3,K4,p4bits,p4,m4star,m4,m5,
+          vals:{K1:K1.out,K2:K2.out,K3:K3.out,K4:K4.out,M1:m1,M2:m2.out,M3:m3.out,M4:m4,M5:m5.out}};
+}
+/* === ENGINE END === */
+
+/* ================== 常量与向量 ================== */
+const C_ENC=hex2b('010153484500800000000000000000B0');
+const C_MAC=hex2b('010253484500800000000000000000B0');
+function hex2b(s){s=String(s||'').replace(/[^0-9a-fA-F]/g,'');if(s.length%2)s='0'+s;const o=new Uint8Array(s.length/2);for(let i=0;i<o.length;i++)o[i]=parseInt(s.substr(i*2,2),16);return o;}
+function H(b){let s='';for(let i=0;i<b.length;i++)s+=b[i].toString(16).toUpperCase().padStart(2,'0');return s;}
+function G4(b){const s=H(b),g=[];for(let i=0;i<s.length;i+=8)g.push(s.slice(i,i+8));return g.join(' ');}
+
+const VEC={
+  uid:'010101010101010101010101010101',
+  auth:'848C6694F1D4FA458A2BC23663CFA19A',
+  newk:'2F1FA9CC6FD305118D4BF6CE85C53BF4',
+  kid:2,aid:1,cid:1,flags:0,vo:0,layout:'L1'
+};
+const EXPECT={
+  K1:'59164B39E42B3396DCB3B9EA06AD9FFB',
+  K2:'2FDE193C79A4945A96B12EFF11867FA5',
+  K3:'6E06B50158C9243BD5ECCF080E6193DA',
+  K4:'200993E979B622CAFDA66926844CF3D2',
+  M1:'01010101010101010101010101010121',
+  M2:'7BAAC3FF95BEC1C9FD801E4AD8DF61067508D9A0BA1DCE4A7241D89750CAFA35',
+  M3:'42826C488D70F8ED8EA3FFE5F5549A0F',
+  M4:'01010101010101010101010101010121C681BDF0B269C3212C9BECC36FDBD010',
+  M5:'754A80C320BA894E11532DD325843030'
+};
+
+/* ================== 渲染工具 ================== */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function ladder(rows){
+  return '<div class="ladder">'+rows.map(r=>{
+    if(r==='sep') return '<div class="lsep"></div>';
+    return `<div class="lrow ${r.cls||''}"><span class="op">${r.op||''}</span><span class="lbl">${r.label}</span><span class="hx">${r.hex}</span></div>`;
+  }).join('')+'</div>';
+}
+function byteGrid(b,marks){
+  marks=marks||{};
+  let h='<div class="bytes">';
+  for(let i=0;i<b.length;i++){
+    const c=marks[i]||'';
+    h+=`<div class="b ${c}">${b[i].toString(16).toUpperCase().padStart(2,'0')}<i>${i}</i></div>`;
+  }
+  return h+'</div>';
+}
+function bitBar(bits,groups){
+  /* groups: [[start,end,cls],...] 按位索引着色 */
+  const cls=new Array(bits.length).fill('');
+  for(const g of groups||[]) for(let i=g[0];i<=g[1];i++) cls[i]=g[2];
+  let h='<div class="bits">';
+  for(let i=0;i<bits.length;i++){
+    const sp=(i>0&&i%8===0)?' sp':'';
+    h+=`<i class="${cls[i]||''}${sp}">${bits[i]}</i>`;
+  }
+  return h+'</div>';
+}
+function aesBlockHTML(t,label,open){
+  return `<details class="aes"${open?' open':''}><summary>${esc(label)}　展开 AES 内部（10 轮，共 ${t.rounds.length} 个状态）</summary>
+  <div class="aesbody">
+    <div class="round">
+      <div class="rh">Round 0 · 初始白化 AddRoundKey（明文 ⊕ w[0..3]）</div>
+      <div class="rr ark"><span class="k">ARK</span><span class="v">${G4(t.rounds[0].ark)}</span></div>
+    </div>
+    ${t.rounds.slice(1).map(x=>`
+    <div class="round">
+      <div class="rh">Round ${x.r}${x.r===10?' · 最后一轮无 MixColumns':''}</div>
+      <div class="rr"><span class="k">SB</span><span class="v">${G4(x.sb)}</span></div>
+      <div class="rr"><span class="k">SR</span><span class="v">${G4(x.sr)}</span></div>
+      <div class="rr"><span class="k">MC</span><span class="v">${x.mc?G4(x.mc):'——（第 10 轮跳过）'}</span></div>
+      <div class="rr ark"><span class="k">ARK</span><span class="v">${G4(x.ark)}</span></div>
+    </div>`).join('')}
+  </div></details>`;
+}
+function card(id,n,title,tags,body){
+  return `<div class="card" id="${id}">
+    <h2><span class="n">${n}</span>${title}${(tags||[]).map(t=>`<span class="tag ${t[1]||''}">${t[0]}</span>`).join('')}</h2>
+    ${body}
+  </div>`;
+}
+
+/* ================== 各步渲染 ================== */
+function m2Section(r,p){
+  let body=`<div class="formula">P2 = CID[28] <b>‖</b> flags[${p.layout==='L1'?'5':'6'}] <b>‖</b> 0×${p.layout==='L1'?'95':'94'}
+  　→　M2 = <b>AES_CBC</b>(K1, IV = 0×128, P2 ‖ NEWKEY)</div>`;
+
+  body+=`<p class="note"><b>第 1 步 · 位打包</b>：注意这不是"CID 4 字节 + FID 4 字节"的字节对齐结构。CID 只有 28 bit，
+  后面紧跟 5 bit 标志位，再补 ${p.layout==='L1'?'95':'94'} 个 0，凑满 128 bit 作为 M2 的第一块明文。</p>`;
+  const fStart=p.layout==='L3'?29:28, fEnd=fStart+4;
+  const voIdx=p.layout==='L3'?28:(p.layout==='L2'?33:-1);
+  const grp=[[0,27,'g1'],[fStart,fEnd,'g2']];
+  if(voIdx>=0) grp.push([voIdx,voIdx,'g4']);
+  body+=bitBar(r.p2bits,grp);
+  body+=`<div class="legend"><span><i style="background:var(--blue2)"></i>CID = ${p.cid}（28 bit）</span>
+    <span><i style="background:var(--vio)"></i>flags = 0x${p.flags.toString(16).toUpperCase().padStart(2,'0')}（5 bit = WP|BP|DP|KU|WC）</span>
+    ${voIdx>=0?'<span><i style="background:var(--grn)"></i>VO = '+p.vo+'</span>':''}
+    <span><i style="background:var(--ghost)"></i>补 0</span></div>`;
+  /* 5 个标志位在 P2 里的落点与含义 */
+  const F5=[['WP',4,'写保护','置 1 后该槽锁死，后续 LOAD_KEY 一律拒绝，不可逆'],
+            ['BP',3,'启动保护','安全启动未完成或校验失败时，该密钥不可用'],
+            ['DP',2,'调试保护','调试器连接 / 调试使能时，该密钥不可用'],
+            ['KU',1,'用途','1 = 只能做 MAC 生成与校验；0 = 只能做加解密'],
+            ['WC',0,'通配符','置 1 才承认全 0 的 UID（通配 UID）更新该槽']];
+  body+=`<div class="tblwrap" style="margin:8px 0 6px"><table>
+    <tr><th style="width:168px">在 P2 中的位置</th><th style="width:56px">标志</th><th style="width:38px">值</th><th>置 1 的含义</th></tr>
+    ${F5.map(([n,sh,cn,d],i)=>{
+      const v=(p.flags>>sh)&1;
+      return `<tr><td class="mono" style="color:var(--dim3)">bit ${fStart+i}（CID 后第 ${i+1} 位）</td>
+        <td class="mono" style="color:var(--vio)">${n}</td>
+        <td class="mono" style="color:${v?'var(--grn)':'var(--faint)'}">${v}</td>
+        <td style="color:var(--dim)"><b style="color:var(--tx2);font-weight:500">${cn}</b> — ${d}</td></tr>`;
+    }).join('')}
+    ${voIdx>=0?`<tr><td class="mono" style="color:var(--dim3)">bit ${voIdx}（${p.layout==='L3'?'CID 后第 1 位':'WC 之后'}）</td>
+      <td class="mono" style="color:var(--grn)">VO</td>
+      <td class="mono" style="color:${p.vo?'var(--grn)':'var(--faint)'}">${p.vo}</td>
+      <td style="color:var(--dim)"><b style="color:var(--tx2);font-weight:500">仅验签</b> — 该槽只能用于 VERIFY_MAC，不能用于 GENERATE_MAC；KU=0 时此位无意义（NXP SFE 增强模式才占这一位）</td></tr>`:''}
+  </table></div>`;
+  body+=`<p class="note">bit 编号从首块 128 bit 的最高位算起（bit0 = 0x80 那一位）。5 位的先后顺序是
+  <b>WP → BP → DP → KU → WC</b>，<b>WP 在最高位</b>、紧贴 CID 之后 —— 所以 flags=0x10 只置 WP，flags=0x01 只置 WC。
+  选 L1 时这一位被算进补 0 区，VO 根本没进报文；只有 VO=0 时 L1 与 L2 逐位完全相同，这正是默认向量下两种排布算出的 M2 一模一样的原因。</p>`;
+  body+=`<p class="note">拼成字节后：</p>`;
+  body+=byteGrid(r.p2,{[3]:'hl',[0]:'',[1]:'',[2]:''});
+  body+=`<div class="legend"><span>byte3 = <span class="mono" style="font-family:ui-monospace,Consolas,monospace">0x${r.p2[3].toString(16).toUpperCase().padStart(2,'0')}</span>
+    　= CID 低 4 bit(<span style="color:var(--blue2)">${((p.cid&0x0F)>>>0).toString(2).padStart(4,'0')}</span>) ‖ flags 高位 ＝ 一个字节里塞了两个字段</span></div>`;
+
+  body+=`<p class="note" style="margin-top:12px"><b>第 2 步 · CBC 加密第 1 块</b>（整块用 K1）</p>`;
+  const b1=r.m2.blocks[0];
+  body+=ladder([
+    {op:'',label:'P2（明文）',hex:G4(b1.plain),cls:'p'},
+    {op:'⊕',label:'IV = 0×128',hex:G4(b1.prev),cls:'iv'},
+    'sep',
+    {op:'=',label:'XOR 结果',hex:G4(b1.xored),cls:''},
+    {op:'',label:'AES_ECB(密钥=K1)',hex:G4(r.vals.K1),cls:'k'},
+    'sep',
+    {op:'=',label:'C₁',hex:G4(b1.out),cls:'res'}
+  ]);
+  body+=aesBlockHTML(b1.aes,'CBC 第 1 块 AES · 密钥 K1',false);
+
+  body+=`<p class="note" style="margin-top:12px"><b>第 3 步 · CBC 加密第 2 块</b>：明文换成本次要写入的新密钥 NEWKEY，与上一块密文 C₁ 异或后再加密。</p>`;
+  const b2=r.m2.blocks[1];
+  body+=ladder([
+    {op:'',label:'NEWKEY（明文）',hex:G4(b2.plain),cls:'p'},
+    {op:'⊕',label:'C₁（上一块密文）',hex:G4(b2.prev),cls:'p'},
+    'sep',
+    {op:'=',label:'XOR 结果',hex:G4(b2.xored),cls:''},
+    {op:'',label:'AES_ECB(密钥=K1)',hex:G4(r.vals.K1),cls:'k'},
+    'sep',
+    {op:'=',label:'C₂',hex:G4(b2.out),cls:'res'}
+  ]);
+  body+=aesBlockHTML(b2.aes,'CBC 第 2 块 AES · 密钥 K1',false);
+
+  body+=`<p class="note" style="margin-top:12px"><b>第 4 步 · 输出</b>：C₁ ‖ C₂ = 32 字节</p>`;
+  body+=ladder([
+    {op:'',label:'C₁',hex:G4(r.vals.M2.slice(0,16)),cls:'p'},
+    {op:'‖',label:'C₂',hex:G4(r.vals.M2.slice(16,32)),cls:'p'},
+    'sep',
+    {op:'=',label:'M2',hex:G4(r.vals.M2),cls:'res'}
+  ]);
+  return card('s-m2','S4',m2SectionTitle(p),m2SectionTags(p),body);
+}
+function m2SectionTitle(p){return 'M2 = AES_CBC(K1, CID ‖ flags ‖ 补 0 ‖ NEWKEY)';}
+function m2SectionTags(p){return [['32 字节 · 两块 CBC','grn'],['位打包','amb']];}
+
+function m3Section(r){
+  const c=r.m3;
+  let body=`<div class="formula">M3 = <b>CMAC</b>(K2, M1 ‖ M2)　输入 48 字节 = 3 个整块 → 走"完整块"分支：末块先 ⊕ K1′，不补 0x80</div>`;
+  body+=`<p class="note"><b>前置 · 子密钥</b>：CMAC 先用 K2 加密全 0 得到 L，再对 L 做两次"左移一位、溢出则异或 0x87"得到 K1′、K2′。</p>`;
+  body+=ladder([
+    {op:'',label:'L = AES_ECB(K2, 0×128)',hex:G4(c.L),cls:'p'},
+    {op:'',label:'K1′ = dbl(L)',hex:G4(c.sub1),cls:'k'},
+    {op:'',label:'K2′ = dbl(K1′)',hex:G4(c.sub2),cls:'iv'}
+  ]);
+  body+=aesBlockHTML(c.t0,'计算 L 的那次 AES · 密钥 K2',false);
+  body+=`<p class="note" style="margin:12px 0 4px"><b>dbl 的细节</b>：把 128 bit 当一个大整数左移 1 位（丢弃溢出位），
+  若原最高位是 1，则把结果的<b>最低字节异或 0x87</b>（因为 CMAC 的不可约多项式是 x¹²⁸+x⁷+x²+x+1）。</p>`;
+  body+=ladder([
+    {op:'',label:'L',hex:G4(c.L),cls:'p'},
+    {op:'→',label:'L << 1（最高位='+((c.L[0]&0x80)?'1，需补 0x87':'0，不补')+'）',hex:G4(c.sub1),cls:'k'}
+  ]);
+
+  body+=`<p class="note" style="margin-top:12px"><b>分块</b>：M1 是第 1 块，M2 拆成第 2、3 块；第 3 块（末块）先与 K1′ 异或。</p>`;
+  body+=ladder([
+    {op:'',label:'B₃（M2 的后 16 字节）',hex:G4(c.raw[2]),cls:'p'},
+    {op:'⊕',label:'K1′',hex:G4(c.sub1),cls:'k'},
+    'sep',
+    {op:'=',label:'B₃′',hex:G4(c.lastUsed),cls:'res'}
+  ]);
+
+  body+=`<p class="note" style="margin-top:12px"><b>链式</b>：Tᵢ = AES_K2( Tᵢ₋₁ ⊕ Bᵢ )，T₀ = 0。</p>`;
+  c.chain.forEach((b,i)=>{
+    body+=ladder([
+      {op:'',label:'T'+(i===0?'₀ = 0×128':'₍'+i+'₎'),hex:G4(b.prev),cls:'iv'},
+      {op:'⊕',label:'B'+(i+1)+(i===2?'′':''),hex:G4(b.blk),cls:'p'},
+      'sep',
+      {op:'=',label:'XOR',hex:G4(b.xored),cls:''},
+      {op:'',label:'AES_ECB(密钥=K2)',hex:G4(r.vals.K2),cls:'k'},
+      'sep',
+      {op:'=',label:'T'+(i+1),hex:G4(b.out),cls:i===2?'res':''}
+    ]);
+    body+=aesBlockHTML(b.aes,'第 '+(i+1)+' 块 AES · 密钥 K2',false);
+  });
+  body+=`<p class="note" style="margin-top:8px">最后一块的输出 T₃ 就是 M3。</p>`;
+  body+=ladder([{op:'=',label:'M3 = T₃',hex:G4(r.vals.M3),cls:'res'}]);
+  return card('s-m3','S5','M3 = CMAC(K2, M1 ‖ M2)',[['16 字节','grn'],['CMAC','blue']],body);
+}
+
+function m4Section(r,p){
+  const t=r.m4star;
+  let body=`<div class="formula">P4 = CID[28] <b>‖</b> 1 <b>‖</b> 0×99　→　M4* = <b>AES_ECB</b>(K3, P4)　→　M4 = M1 ‖ M4*</div>`;
+  body+=`<p class="note"><b>第 1 步 · 位打包</b>：CID 后面紧跟一个固定的 <b>1</b>（叫 CIDPAD），再补 99 个 0。这个 1 和 CID 的最低 4 bit 会落在同一个字节里。</p>`;
+  body+=bitBar(r.p4bits,[[0,27,'g1'],[28,28,'g3'],[29,127,'']]);
+  body+=`<div class="legend"><span><i style="background:var(--blue2)"></i>CID = ${p.cid}（28 bit）</span>
+    <span><i style="background:var(--amb)"></i>CIDPAD 固定的 1（bit99）</span>
+    <span><i style="background:var(--ghost)"></i>补 0（99 bit）</span></div>`;
+  body+=byteGrid(r.p4,{[3]:'hl'});
+  body+=`<div class="legend"><span>byte3 = <span style="font-family:ui-monospace,Consolas,monospace">0x${r.p4[3].toString(16).toUpperCase().padStart(2,'0')}</span>
+    　= CID 低 4 bit(<span style="color:var(--blue2)">${((p.cid&0x0F)>>>0).toString(2).padStart(4,'0')}</span>) ‖ <span style="color:var(--amb)">1</span> ‖ 000</span></div>`;
+  body+=`<p class="note" style="margin-top:12px"><b>第 2 步 · 单块 ECB</b>（规范写的是 ECB；这里只有一块且 IV=0，所以 CBC 会得到同样结果，但不要写成 CBC）</p>`;
+  body+=ladder([
+    {op:'',label:'P4（明文）',hex:G4(r.p4),cls:'p'},
+    {op:'',label:'AES_ECB(密钥=K3)',hex:G4(r.vals.K3),cls:'k'},
+    'sep',
+    {op:'=',label:'M4*',hex:G4(t.out),cls:'res'}
+  ]);
+  body+=aesBlockHTML(t,'M4* 的 AES · 密钥 K3',false);
+  body+=`<p class="note" style="margin-top:12px"><b>第 3 步 · 拼接</b>：M4 的前 16 字节就是 M1 原样复制，不是重新算一遍。</p>`;
+  body+=ladder([
+    {op:'',label:'M1',hex:G4(r.m1),cls:'p'},
+    {op:'‖',label:'M4*',hex:G4(t.out),cls:'p'},
+    'sep',
+    {op:'=',label:'M4',hex:G4(r.vals.M4),cls:'res'}
+  ]);
+  return card('s-m4','S7','M4 = M1 ‖ AES_ECB(K3, CID ‖ 1 ‖ 0×99)',[['32 字节','grn'],['ECB','amb']],body);
+}
+
+function m5Section(r){
+  const c=r.m5;
+  let body=`<div class="formula">M5 = <b>CMAC</b>(K4, M4)　输入 32 字节 = 2 个整块 → 末块先 ⊕ K1′</div>`;
+  body+=ladder([
+    {op:'',label:'L = AES_ECB(K4, 0×128)',hex:G4(c.L),cls:'p'},
+    {op:'',label:'K1′ = dbl(L)',hex:G4(c.sub1),cls:'k'},
+    {op:'',label:'K2′ = dbl(K1′)',hex:G4(c.sub2),cls:'iv'}
+  ]);
+  body+=aesBlockHTML(c.t0,'计算 L 的那次 AES · 密钥 K4',false);
+  body+=`<p class="note" style="margin-top:10px"><b>末块处理</b>：</p>`;
+  body+=ladder([
+    {op:'',label:'B₂ = M4*',hex:G4(c.raw[1]),cls:'p'},
+    {op:'⊕',label:'K1′',hex:G4(c.sub1),cls:'k'},
+    'sep',
+    {op:'=',label:'B₂′',hex:G4(c.lastUsed),cls:'res'}
+  ]);
+  c.chain.forEach((b,i)=>{
+    body+=ladder([
+      {op:'',label:'T'+(i===0?'₀ = 0×128':'₍'+i+'₎'),hex:G4(b.prev),cls:'iv'},
+      {op:'⊕',label:'B'+(i+1)+(i===1?'′':''),hex:G4(b.blk),cls:'p'},
+      'sep',
+      {op:'=',label:'XOR',hex:G4(b.xored),cls:''},
+      {op:'',label:'AES_ECB(密钥=K4)',hex:G4(r.vals.K4),cls:'k'},
+      'sep',
+      {op:'=',label:'T'+(i+1),hex:G4(b.out),cls:i===1?'res':''}
+    ]);
+    body+=aesBlockHTML(b.aes,'第 '+(i+1)+' 块 AES · 密钥 K4',false);
+  });
+  body+=ladder([{op:'=',label:'M5 = T₂',hex:G4(r.vals.M5),cls:'res'}]);
+  return card('s-m5','S8','M5 = CMAC(K4, M4)',[['16 字节','grn'],['CMAC','blue']],body);
+}
+
+function m1Section(r,p){
+  let body=`<div class="formula">M1 = UID[120] <b>‖</b> KEYID[4] <b>‖</b> AUTHID[4]</div>`;
+  body+=`<p class="note">UID 只用前 15 字节（120 bit），第 16 字节整字节被 KEYID 与 AUTHID 占掉：高半字节 = 目标密钥槽号，低半字节 = 授权密钥槽号。</p>`;
+  body+=byteGrid(r.m1,{15:'hl'});
+  body+=`<div class="legend"><span>前 15 字节 = UID（原样复制）</span><span>byte15 = <span style="font-family:ui-monospace,Consolas,monospace">0x${r.m1[15].toString(16).toUpperCase().padStart(2,'0')}</span>
+    = KEYID(<span style="color:var(--blue2)">${(p.kid&0xF).toString(2).padStart(4,'0')}</span>) ‖ AUTHID(<span style="color:var(--amb)">${(p.aid&0xF).toString(2).padStart(4,'0')}</span>)</span></div>`;
+  body+=ladder([
+    {op:'',label:'UID[120]（15 字节 / 30 hex）',hex:H(r.m1.slice(0,15)),cls:'p'},
+    {op:'‖',label:'KEYID '+p.kid+' ‖ AUTHID '+p.aid,hex:'0x'+r.m1[15].toString(16).toUpperCase().padStart(2,'0')+'（占满第 16 字节）',cls:'p'},
+    'sep',
+    {op:'=',label:'M1',hex:G4(r.m1),cls:'res'}
+  ]);
+  return card('s-m1','S3','M1 = UID ‖ KEYID ‖ AUTHID',[['16 字节','grn'],['纯拼接','blue']],body);
+}
+
+/* ================== 主流程 ================== */
+function readParams(){
+  const n=(id,d)=>Math.max(0,parseInt($(id).value||d,10)||0);
+  return {
+    uid:hex2b($('#p_uid').value), auth:hex2b($('#p_auth').value), newk:hex2b($('#p_new').value),
+    kid:Math.min(15,n('#p_kid',2)), aid:Math.min(15,n('#p_aid',1)),
+    cid:n('#p_cid',1), flags:Math.min(31,n('#p_flags',0)),
+    vo:parseInt($('#p_vo').value,10), layout:$('#p_layout').value
+  };
+}
+
+/* ================== 标志位芯片（含义标注 + 点击切换） ================== */
+const FLAG_DEF=[
+  ['WP',4,'写保护','置 1 后该槽锁死：后续 LOAD_KEY 一律被拒，不可逆'],
+  ['BP',3,'启动保护','安全启动未完成或校验失败时，该密钥不可用'],
+  ['DP',2,'调试保护','调试器连着 / 调试口打开时，该密钥不可用'],
+  ['KU',1,'用途','1 = 只能做 MAC；0 = 只能做加解密'],
+  ['WC',0,'通配符','置 1 才认全 0 的 UID（通配 UID）来更新该槽']
+];
+function flagChips(p){
+  const kuOn=(p.flags&2)!==0;
+  let h=`<p class="note" style="margin:13px 0 0">标志位标注（<b>点一下切换</b>）——这 5 位就是 M2 首块里 CID 紧跟的 5 个 bit，
+    先后顺序 <b>WP → BP → DP → KU → WC</b>，WP 在最高位；VERIFY_ONLY 是第 6 位（NXP SFE 增强模式才有）。</p>`;
+  h+=`<div class="flags">`;
+  FLAG_DEF.forEach(([n,sh,cn,d])=>{
+    const v=(p.flags>>sh)&1;
+    h+=`<div class="fchip${v?' on':''}" data-f="${1<<sh}" title="${cn}（bit${4-sh}，权重 0x${(1<<sh).toString(16).toUpperCase()}）：${d}">
+      <div class="fh"><span class="fn">${n}</span><span class="fv">${v}</span></div>
+      <div class="fd"><b style="color:inherit">${cn}</b>：${d}</div>
+    </div>`;
+  });
+  h+=`<div class="fchip vo${p.vo?' on':''}${kuOn?'':' mute'}" data-f="-1" title="VERIFY_ONLY：该槽只能用于 VERIFY_MAC，不能用于 GENERATE_MAC">
+    <div class="fh"><span class="fn">VO</span><span class="fv">${p.vo}</span></div>
+    <div class="fd"><b style="color:inherit">仅验签</b>：${kuOn?'只能 VERIFY_MAC，不能 GENERATE_MAC':'当前 KU=0，此位对加解密密钥无效果'}</div>
+  </div>`;
+  h+=`</div>`;
+  h+=`<p class="note" style="margin:9px 0 0">几处容易踩的坑：<b>WP 不可逆</b>，产线误置一次这个槽就废了；
+    <b>KU 写反</b>会让 MAC 校验报 <code>ERC_KEY_USAGE</code>；<b>VO 不是"试写不落盘"</b>，
+    它只是把密钥限定在"只能验 MAC"的用途上（NXP SFE：GENERATE_MAC 视该槽为无效，VERIFY_MAC 仍可用，且 KU=0 时无效果）；
+    <b>WC</b> 按 AUTOSAR TR §4.9.1 是"置 1 才允许通配 UID"，部分中文资料讲反了，以自家芯片手册为准；
+    <b>第 6 位各家不统一</b>：NXP SFE 放 VERIFY_ONLY、Vector / GM-SHE+ 放 CMAC_USAGE，所以才有上面的 L1 / L2 / L3 三选一。</p>`;
+  return h;
+}
+
+/* ================== 结果总览（参数与详细流程之间） ================== */
+function resultsSection(r,p){
+  const cid=p.cid>>>0;
+  const rows=[
+    ['M1',128,r.vals.M1,`明文头：UID[120] <b>‖</b> KEYID(${p.kid}) <b>‖</b> AUTHID(${p.aid})　—　这 16 字节原样复制，不做任何加密`],
+    ['M2',256,r.vals.M2,`新密钥密文：AES_CBC(K1, IV=0, P2 <b>‖</b> NEWKEY)　—　P2 头含 CID=${cid} 与 flags=0x${p.flags.toString(16).toUpperCase().padStart(2,'0')}`],
+    ['M3',128,r.vals.M3,`请求认证码：CMAC(K2, M1 <b>‖</b> M2)　—　主机把 M1/M2/M3 一起发给 ECU`],
+    ['M4',256,r.vals.M4,`ECU 侧回读：M1 <b>‖</b> AES_ECB(K3, CID=${cid} <b>‖</b> 1 <b>‖</b> 0×99)　—　前 16 字节仍是 M1`],
+    ['M5',128,r.vals.M5,`回读认证码：CMAC(K4, M4)　—　与主机算的值比对成功即灌装完成`]
+  ];
+  let b=`<div class="formula">主机 → ECU：<b>M1</b> + <b>M2</b> + <b>M3</b>　　　ECU 自算并回传：<b>M4</b> + <b>M5</b>（主机复算比对）</div>`;
+  rows.forEach(([n,bits,val,f])=>{
+    b+=`<div class="resrow">
+      <div class="rnm">${n}<span>${bits} bit</span></div>
+      <div><div class="rv">${G4(val)}</div><div class="rf">${f}</div></div>
+    </div>`;
+  });
+  b+=`<p class="note" style="margin:9px 0 0">数值点一下即可整行选中，方便粘到日志或脚本里逐字节核对；改上面任一参数，这五组值立刻重算。</p>`;
+  b+=`<div class="rlab">中间密钥（KDF 派生，不进报文，但每一步都用到）</div><div class="resmini">` +
+    ['K1','K2','K3','K4'].map(k=>{
+      const f={K1:'KDF(AUTHKEY, ENC_C)',K2:'KDF(AUTHKEY, MAC_C)',K3:'KDF(NEWKEY, ENC_C)',K4:'KDF(NEWKEY, MAC_C)'}[k];
+      return `<div class="resrow k">
+        <div class="rnm">${k}<span>128 bit</span></div>
+        <div><div class="rv">${G4(r.vals[k])}</div><div class="rf">${f}</div></div>
+      </div>`;
+    }).join('') + `</div>`;
+  return b;
+}
+
+function render(){
+  const p=readParams();
+  if(p.uid.length!==15||p.auth.length!==16||p.newk.length!==16){
+    $('#flagsBody').innerHTML = flagChips(p);
+    $('#resBody').innerHTML='<p class="note" style="color:var(--red)">参数不完整，暂不计算。</p>';
+    $('#steps').innerHTML='<div class="card"><p class="note" style="color:var(--red)">UID 需要 15 字节（30 个 hex 字符），AUTHKEY / NEWKEY 各 16 字节（32 个 hex 字符）。</p></div>';
+    return;
+  }
+  const r=runAll(p);
+  $('#flagsBody').innerHTML = flagChips(p);
+  $('#resBody').innerHTML = resultsSection(r,p);
+  $('#steps').innerHTML =
+    card('s-k1','S1','K1 = KDF(AUTHKEY, KEY_UPDATE_ENC_C)',[['派生加密密钥','blue']],
+      `<div class="formula">K1 = KDF(AUTHKEY, 0x010153484500800000000000000000B0)</div>
+       <p class="note">常量里 <code>53 48 45</code> 是 ASCII 的 "SHE"，末字节 <code>0xB0 = 176 bit</code> 表示"K(128) ‖ C′(48)"的总长——
+       也就是 <b>C 已经自带填充</b>，所以 KDF 只压 <b>2 个块</b>，不需要再补第三块。</p>` +
+      kdfInner(r.K1,'K1')) +
+    card('s-k2','S2','K2 = KDF(AUTHKEY, KEY_UPDATE_MAC_C)',[['派生认证密钥','blue']],
+      `<div class="formula">K2 = KDF(AUTHKEY, 0x010253484500800000000000000000B0)</div>
+       <p class="note">与 K1 的唯一差别是常量首字节 <code>01 → 02</code>（MAC 用途），其余完全相同。
+       两把密钥必须由同一把 AUTHKEY 派生；K1 管加密、K2 管认证。</p>` +
+      kdfInner(r.K2,'K2')) +
+    m1Section(r,p) +
+    m2Section(r,p) +
+    m3Section(r) +
+    card('s-k34','S6','K3 / K4：种子换成 NEWKEY',[['派生交付密钥','blue']],
+      `<p class="note">结构和 K1 / K2 完全一样，只是把种子从 AUTHKEY 换成 NEWKEY。
+       这一步的含义是"用<b>即将写入的新密钥</b>自证算得对"，ECU 侧用存进去的 NEWKEY 重算一遍就能验证 M4 / M5。</p>` +
+      `<p class="note" style="margin-top:10px"><b>K3 = KDF(NEWKEY, KEY_UPDATE_ENC_C)</b></p>` +
+      kdfInner(r.K3,'K3') +
+      `<p class="note" style="margin-top:16px;border-top:1px solid var(--line2);padding-top:14px"><b>K4 = KDF(NEWKEY, KEY_UPDATE_MAC_C)</b></p>` +
+      kdfInner(r.K4,'K4')) +
+    m4Section(r,p) +
+    m5Section(r) ;
+}
+
+/* KDF 展开：两块的完整过程，作为卡片 body 的一部分使用 */
+function kdfInner(tr,name){
+  const s1=tr.steps[0], s2=tr.steps[1];
+  let b=`<p class="note"><b>第 1 块</b>：AES 密钥 = OUT₀（全 0），明文 = ${esc(s1.label)}。</p>`;
+  b+=ladder([
+    {op:'',label:'OUT₀（密钥）',hex:G4(s1.key),cls:'k'},
+    {op:'',label:s1.label+'（明文）',hex:G4(s1.x),cls:'p'},
+    'sep',{op:'=',label:'A₁ = AES_ECB(OUT₀, X₁)',hex:G4(s1.aes.out),cls:''}
+  ]);
+  b+=aesBlockHTML(s1.aes,'第 1 个 AES · 密钥 '+H(s1.key),false);
+  b+=ladder([
+    {op:'',label:'A₁',hex:G4(s1.aes.out),cls:'p'},
+    {op:'⊕',label:'X₁',hex:G4(s1.x),cls:'p'},
+    {op:'⊕',label:'OUT₀',hex:G4(s1.key),cls:'p'},
+    'sep',{op:'=',label:'OUT₁',hex:G4(s1.out),cls:'res'}
+  ]);
+  b+=`<p class="note" style="margin-top:12px"><b>第 2 块</b>：密钥换成上一块的输出 OUT₁，明文换成规范常量。</p>`;
+  b+=ladder([
+    {op:'',label:'OUT₁（密钥）',hex:G4(s2.key),cls:'k'},
+    {op:'',label:s2.label+'（明文）',hex:G4(s2.x),cls:'p'},
+    'sep',{op:'=',label:'A₂ = AES_ECB(OUT₁, X₂)',hex:G4(s2.aes.out),cls:''}
+  ]);
+  b+=aesBlockHTML(s2.aes,'第 2 个 AES · 密钥 '+H(s2.key),false);
+  b+=ladder([
+    {op:'',label:'A₂',hex:G4(s2.aes.out),cls:'p'},
+    {op:'⊕',label:'X₂',hex:G4(s2.x),cls:'p'},
+    {op:'⊕',label:'OUT₁',hex:G4(s2.key),cls:'p'},
+    'sep',{op:'=',label:name,hex:G4(tr.out),cls:'res'}
+  ]);
+  return b;
+}
+
+['p_uid','p_auth','p_new','p_kid','p_aid','p_cid','p_flags'].forEach(id=>{
+  const el=document.getElementById(id); if(el) el.addEventListener('input',render);
+});
+['p_vo','p_layout'].forEach(id=>{
+  const el=document.getElementById(id); if(el) el.addEventListener('change',render);
+});
+/* 标志位芯片点击：位权重取 data-f，VO 用 -1 表示切换 VERIFY_ONLY */
+(function(){
+  const box=document.getElementById('flagsBody'); if(!box||!box.addEventListener) return;
+  box.addEventListener('click',function(e){
+    let t=e.target;
+    while(t&&t.getAttribute&&!t.getAttribute('data-f')) t=t.parentNode;
+    if(!t||!t.getAttribute) return;
+    const w=parseInt(t.getAttribute('data-f'),10);
+    if(w<0){ const s=$('#p_vo'); s.value = s.value==='1'?'0':'1'; }
+    else{ const inp=$('#p_flags'); inp.value=String(((parseInt(inp.value,10)||0)^w)&31); }
+    render();
+  });
+})();
+function fill(v){
+  $('#p_uid').value=v.uid; $('#p_auth').value=v.auth; $('#p_new').value=v.newk;
+  $('#p_kid').value=v.kid; $('#p_aid').value=v.aid; $('#p_cid').value=v.cid;
+  $('#p_flags').value=v.flags; $('#p_vo').value=String(v.vo); $('#p_layout').value=v.layout;
+}
+/* 用 ?open=1 打开时直接把全部 AES 轮展开，便于分享 / 打印 */
+const FORCE_OPEN=(typeof location!=='undefined'&&String(location.search||'').indexOf('open=1')>=0);
+const rawRender=render;
+render=function(){ rawRender(); if(FORCE_OPEN) document.querySelectorAll('details.aes').forEach(d=>d.open=true); };
+fill(VEC); render();
+
+window.__trace={runAll,kdfTrace,cmacTrace,cbcTrace,traceEncrypt,expandKey,kdfTrace,toHex:H,hex2b,buildM2Bits,buildP4Bits,EXPECT,VEC,readParams,render};
+})();
+</script>
+<script>
+/* 主题切换：随系统 / 明亮 / 暗黑，选择记在 localStorage */
+(function(){
+  var KEY='sheTraceTheme';
+  var mq=window.matchMedia?matchMedia('(prefers-color-scheme: dark)'):null;
+  function resolve(m){ return m==='light'?'light':m==='dark'?'dark':((mq&&mq.matches)?'dark':'light'); }
+  function paint(m){
+    var root=document.documentElement;
+    root.setAttribute('data-theme', resolve(m));
+    root.setAttribute('data-mode', m);
+    var bs=document.querySelectorAll('#segTheme button');
+    for(var i=0;i<bs.length;i++) bs[i].className = (bs[i].getAttribute('data-mode')===m)?'on':'';
+  }
+  var init='system';
+  try{ init=localStorage.getItem(KEY)||'system'; }catch(e){}
+  paint(init);
+  var seg=document.getElementById('segTheme');
+  if(seg&&seg.addEventListener){
+    seg.addEventListener('click',function(e){
+      var t=e.target;
+      while(t&&t!==seg&&!(t.getAttribute&&t.getAttribute('data-mode'))) t=t.parentNode;
+      if(!t||t===seg) return;
+      var m=t.getAttribute('data-mode');
+      try{ localStorage.setItem(KEY,m); }catch(err){}
+      paint(m);
+    });
+  }
+  if(mq&&mq.addEventListener){
+    mq.addEventListener('change',function(){
+      if(document.documentElement.getAttribute('data-mode')==='system') paint('system');
+    });
+  }
+})();
+</script>
+</body>
+</html>
