@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark" data-mode="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0a0510">
+<meta name="description" content="在浏览器中通过 WebUSB / DFU 为 Bugable CAN 适配器刷写固件。">
+<title>CAN 固件升级 · Bugable</title>
+
+<script>
+/* 主题在首次绘制前落定，避免深色 / 浅色闪烁。 */
+(function () {
+  var r = document.documentElement, m = 'system';
+  try {
+    m = localStorage.getItem('fzxhub-theme') || 'system';
+    if (m !== 'light' && m !== 'dark' && m !== 'system') m = 'system';
+  } catch (e) { m = 'system'; }
+  var dark = m === 'dark' || (m !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  r.setAttribute('data-mode', m);
+  r.setAttribute('data-theme', dark ? 'dark' : 'light');
+  r.style.colorScheme = dark ? 'dark' : 'light';
+})();
+</script>
+
+<link href="./main.css" rel="stylesheet">
+
+<script>
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-2800455-3', 'auto');
+ga('send', 'pageview');
+</script>
+</head>
+
+<body>
+
+<div class="bg" aria-hidden="true">
+  <div class="bg-layer layer-light"></div>
+  <div class="bg-layer layer-dark"></div>
+  <div class="orb a"></div>
+  <div class="orb b"></div>
+  <div class="grain"></div>
+</div>
+
+<header class="top">
+  <div class="wrap top-in">
+    <a class="brand" href="../" aria-label="返回工具箱首页">
+      <img src="./logo.svg" alt="">
+      <span>Bugable <em>Updater</em></span>
+    </a>
+
+    <div class="theme" id="theme" role="group" aria-label="主题切换">
+      <span class="knob" aria-hidden="true"></span>
+      <button type="button" data-mode="system" aria-pressed="true" title="跟随系统">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2.5" y="3.5" width="19" height="13" rx="2"/><path d="M8.5 20.5h7M12 16.5v4"/>
+        </svg><span>系统</span>
+      </button>
+      <button type="button" data-mode="light" aria-pressed="false" title="明亮">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.4M12 19.4v2.4M2.2 12h2.4M19.4 12h2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7"/>
+        </svg><span>明亮</span>
+      </button>
+      <button type="button" data-mode="dark" aria-pressed="false" title="暗黑">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20.5 14.4A8.6 8.6 0 1 1 9.6 3.5a6.9 6.9 0 0 0 10.9 10.9z"/>
+        </svg><span>暗黑</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="hero">
+    <span class="eyebrow"><span class="spark"></span>WebUSB · DFU</span>
+    <h1>CAN 固件升级</h1>
+    <p>在浏览器里为 Bugable CAN 适配器刷写固件，无需安装工具链。请先让设备进入 Boot 模式。</p>
+  </section>
+
+  <div class="grid">
+    <section class="panel steps">
+      <div class="panel-head">
+        <h2>操作步骤</h2>
+        <span class="tag">3 步完成</span>
+      </div>
+      <ol>
+        <li>按住设备上的 Boot 按键（带外壳设备请用卡针），再通过 USB 连接到电脑。</li>
+        <li>插入后松开 Boot 按键，在下方选择要刷入的固件，点击「Connect and Update」。</li>
+        <li>等待刷写完成提示，重新插拔 USB 即可正常使用。</li>
+      </ol>
+    </section>
+
+    <section class="panel notes">
+      <div class="panel-head">
+        <h2>注意事项</h2>
+        <span class="tag">请先阅读</span>
+      </div>
+      <ul>
+        <li>Windows 上如果浏览器识别不到设备，请先安装 <a href="./driver/ImpulseRC_Driver_Fixer.exe">USB 驱动</a>。</li>
+        <li>Linux 下需要配置 udev 规则，或以超级用户权限启动 Chrome。</li>
+        <li>CAN1 与 CAN2 固件不通用，请根据设备型号选择。</li>
+        <li>型号中带 FD 字样仅表示模拟对象，不代表支持 CAN FD。</li>
+      </ul>
+    </section>
+  </div>
+
+  <section class="panel flash">
+    <div class="panel-head">
+      <h2>刷写固件</h2>
+      <span class="status-chip"><span class="pulse"></span>设备连接状态</span>
+    </div>
+
+    <div class="controls">
+      <label class="field">
+        <span>固件版本</span>
+        <span class="select-wrap">
+          <select id="firmware_path">
+            <option value="./bin/CAN1_Canable_CanableLight_firmware.bin">CAN1 · CANable / candleLight</option>
+            <option value="./bin/CAN1_Canable_Slcan_firmware.bin">CAN1 · slcan</option>
+            <option value="./bin/CAN1_Kvaser_LeafLightV2_firmware.bin">CAN1 · Kvaser LeafLight V2</option>
+            <option value="./bin/CAN1_Peakcan_CAN_firmware.bin">CAN1 · PEAK CAN</option>
+            <option value="./bin/CAN2_Peakcan_FD_firmware.bin">CAN2 · PEAK FD</option>
+            <option value="./bin/CAN2_Peakcan_PRO_firmware.bin">CAN2 · PEAK PRO</option>
+            <option value="./bin/CAN2_Peakcan_PROFD_firmware.bin">CAN2 · PEAK PRO FD</option>
+            <option value="./bin/CAN2_Peakcan_PROFDRE_firmware.bin">CAN2 · PEAK PRO FD RE</option>
+          </select>
+        </span>
+      </label>
+      <button id="connect" type="button">Connect and Update</button>
+    </div>
+
+    <div class="status-line">
+      <span class="label">状态</span>
+      <span id="status"></span>
+    </div>
+
+    <div class="device-info">
+      <div id="usbInfo"></div>
+      <div id="dfuInfo"></div>
+    </div>
+
+    <div class="console-wrap">
+      <div class="console-head"><span>刷写日志</span><span class="led" aria-hidden="true"></span></div>
+      <div id="downloadLog" role="log" aria-live="polite"></div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  版权归冯宗兴所有 · <a href="../">返回工具箱</a>
+</footer>
+
+<script src="./dfu.js"></script>
+<script src="./dfuse.js"></script>
+<script src="./FileSaver.js"></script>
+<script src="./dfu-util.js"></script>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'fzxhub-theme';
+  var root = document.documentElement;
+  var group = document.getElementById('theme');
+  var media = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
+  var ORDER = ['system', 'light', 'dark'];
+
+  function isDark(mode) {
+    return mode === 'dark' || (mode === 'system' && media && media.matches);
+  }
+  function apply(mode, persist) {
+    if (ORDER.indexOf(mode) < 0) mode = 'system';
+    var theme = isDark(mode) ? 'dark' : 'light';
+    root.setAttribute('data-mode', mode);
+    root.setAttribute('data-theme', theme);
+    root.style.colorScheme = theme;
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#0a0510' : '#fff7fa');
+    if (group) {
+      group.style.setProperty('--i', ORDER.indexOf(mode));
+      var btns = group.querySelectorAll('button[data-mode]');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].setAttribute('aria-pressed', btns[i].dataset.mode === mode ? 'true' : 'false');
+      }
+    }
+    if (persist) { try { localStorage.setItem(KEY, mode); } catch (e) {} }
+  }
+  if (group) {
+    group.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('button[data-mode]') : null;
+      if (btn) apply(btn.dataset.mode, true);
+    });
+  }
+  if (media) {
+    var onSys = function () { if (root.getAttribute('data-mode') === 'system') apply('system', false); };
+    if (media.addEventListener) media.addEventListener('change', onSys);
+    else if (media.addListener) media.addListener(onSys);
+  }
+  var saved = 'system';
+  try { saved = localStorage.getItem(KEY) || 'system'; } catch (e) {}
+  apply(saved, false);
+})();
+</script>
+
+</body>
+</html>
