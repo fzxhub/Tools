@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>fzxhub · 工具箱</title>
-<meta name="description" content="fzxhub 开发工具箱：UDS 诊断、AES 加解密、内存字节对照、SHE 密钥灌装、CAN 适配器固件升级。纯前端离线运行。">
-<meta name="theme-color" content="#0b0410">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ff5b8d'/%3E%3Cstop offset='1' stop-color='%23ff2e78'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Ccircle cx='16' cy='16' r='5.2' fill='%23fff' opacity='.92'/%3E%3C/svg%3E">
+<meta name="description" content="fzxhub 开发工具箱：UDS 诊断、AES 加解密、内存字节对照、SHE 密钥灌装、CAN 适配器固件升级、DBC 信号解析。纯前端离线运行。">
+<meta name="theme-color" content="#06110c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='28%25' r='72%25'%3E%3Cstop offset='0' stop-color='%23bdf5d5'/%3E%3Cstop offset='45%25' stop-color='%234fd39a'/%3E%3Cstop offset='100%25' stop-color='%230f8a5a'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='13' fill='url(%23g)'/%3E%3Ccircle cx='11.5' cy='10.5' r='3.1' fill='%23ffffff' opacity='.55'/%3E%3C/svg%3E">
 
 <script>
 /* 主题必须在首次绘制前落定，否则会先闪一下深色再跳亮色。
@@ -39,41 +39,41 @@
 }
 
 html[data-theme="dark"]{
-  --bg-solid:#0b0410;
-  --text:#f4f2f7;
+  --bg-solid:#06110c;
+  --text:#eef7f1;
   --text-strong:#ffffff;
-  --dim:#a79fb4;
-  --dim2:#7b7288;
-  --line:rgba(255,255,255,.10);
-  --line-mid:rgba(255,255,255,.16);
-  --line-hi:rgba(255,255,255,.30);
-  --card:rgba(255,255,255,.05);
-  --card-hover:rgba(255,255,255,.085);
-  --shadow:0 20px 44px -20px rgba(0,0,0,.8);
-  --switch-bg:rgba(255,255,255,.07);
-  --switch-line:rgba(255,255,255,.14);
-  --knob:rgba(255,255,255,.15);
-  --hero-g:linear-gradient(180deg,#ffffff 0%,#ffd7e7 100%);
+  --dim:#9db5a7;
+  --dim2:#6f8a7b;
+  --line:rgba(210,255,230,.10);
+  --line-mid:rgba(210,255,230,.16);
+  --line-hi:rgba(210,255,230,.30);
+  --card:rgba(190,255,220,.05);
+  --card-hover:rgba(190,255,220,.085);
+  --shadow:0 20px 44px -20px rgba(0,25,12,.75);
+  --switch-bg:rgba(190,255,220,.07);
+  --switch-line:rgba(190,255,220,.14);
+  --knob:rgba(190,255,220,.15);
+  --hero-g:linear-gradient(180deg,#ffffff 0%,#c9f6dc 100%);
   --grain:.14;
   color-scheme: dark;
 }
 
 html[data-theme="light"]{
-  --bg-solid:#fff7fa;
-  --text:#2b1a25;
-  --text-strong:#150610;
-  --dim:#6d5b67;
-  --dim2:#8e7d89;
-  --line:rgba(45,10,32,.11);
-  --line-mid:rgba(45,10,32,.18);
-  --line-hi:rgba(45,10,32,.28);
+  --bg-solid:#f3fbf6;
+  --text:#1a2c22;
+  --text-strong:#0d1c13;
+  --dim:#5f7768;
+  --dim2:#7f9587;
+  --line:rgba(18,60,36,.11);
+  --line-mid:rgba(18,60,36,.18);
+  --line-hi:rgba(18,60,36,.28);
   --card:rgba(255,255,255,.62);
   --card-hover:rgba(255,255,255,.9);
-  --shadow:0 20px 44px -24px rgba(130,25,65,.4);
+  --shadow:0 20px 44px -24px rgba(25,90,55,.32);
   --switch-bg:rgba(255,255,255,.58);
-  --switch-line:rgba(45,10,32,.12);
+  --switch-line:rgba(18,60,36,.12);
   --knob:#ffffff;
-  --hero-g:linear-gradient(180deg,#2a0b1a 0%,#b0265f 100%);
+  --hero-g:linear-gradient(180deg,#123b26 0%,#2f9e68 100%);
   --grain:.08;
   color-scheme: light;
 }
@@ -106,20 +106,20 @@ body{
 .layer-dark{
   opacity:1;
   background:
-    radial-gradient(120% 66% at 50% 106%, #07020a 0%, rgba(7,2,10,.9) 34%, transparent 62%),
-    radial-gradient(72% 56% at 10% 6%, rgba(255,42,118,.42), transparent 62%),
-    radial-gradient(66% 54% at 90% 0%, rgba(124,56,255,.36), transparent 66%),
-    radial-gradient(105% 44% at 50% 57%, rgba(255,116,164,.26), transparent 74%),
-    linear-gradient(180deg,#0a0410 0%,#1c0722 36%,#35092c 60%,#190410 100%);
+    radial-gradient(120% 66% at 50% 106%, #020905 0%, rgba(2,9,5,.9) 34%, transparent 62%),
+    radial-gradient(72% 56% at 10% 6%, rgba(58,220,145,.32), transparent 62%),
+    radial-gradient(66% 54% at 90% 0%, rgba(45,190,185,.26), transparent 66%),
+    radial-gradient(105% 44% at 50% 57%, rgba(120,235,175,.22), transparent 74%),
+    linear-gradient(180deg,#05110b 0%,#0b2418 36%,#103524 60%,#07170f 100%);
 }
 .layer-light{
   opacity:0;
   background:
-    radial-gradient(120% 60% at 50% 104%, rgba(255,214,228,.95) 0%, transparent 62%),
-    radial-gradient(72% 56% at 8% 4%, rgba(255,132,176,.55), transparent 64%),
-    radial-gradient(66% 54% at 92% 0%, rgba(186,150,255,.42), transparent 66%),
-    radial-gradient(100% 44% at 50% 58%, rgba(255,170,200,.5), transparent 74%),
-    linear-gradient(180deg,#fffafc 0%,#ffedf4 42%,#ffdce9 68%,#fff8fb 100%);
+    radial-gradient(120% 60% at 50% 104%, rgba(198,244,218,.95) 0%, transparent 62%),
+    radial-gradient(72% 56% at 8% 4%, rgba(120,220,165,.48), transparent 64%),
+    radial-gradient(66% 54% at 92% 0%, rgba(150,215,255,.32), transparent 66%),
+    radial-gradient(100% 44% at 50% 58%, rgba(160,235,195,.45), transparent 74%),
+    linear-gradient(180deg,#f7fdf9 0%,#e6f7ed 42%,#d5f0e0 68%,#f4fbf7 100%);
 }
 html[data-theme="light"] .layer-dark{ opacity:0; }
 html[data-theme="light"] .layer-light{ opacity:1; }
@@ -131,9 +131,9 @@ html[data-theme="light"] .layer-light{ opacity:1; }
   animation:float 20s ease-in-out infinite alternate;
 }
 .orb.a{ width:44vmax; height:44vmax; left:-14vmax; top:-16vmax;
-        background:radial-gradient(circle,rgba(255,64,132,.55),transparent 66%); }
+        background:radial-gradient(circle,rgba(60,215,140,.45),transparent 66%); }
 .orb.b{ width:40vmax; height:40vmax; right:-12vmax; top:-10vmax; animation-delay:-8s;
-        background:radial-gradient(circle,rgba(134,72,255,.48),transparent 66%); }
+        background:radial-gradient(circle,rgba(45,190,185,.36),transparent 66%); }
 html[data-theme="light"] .orb{ opacity:.34; }
 @keyframes float{
   from{ transform:translate3d(0,0,0) scale(1); }
@@ -168,11 +168,11 @@ html[data-theme="light"] .orb{ opacity:.34; }
 }
 .brand .dot{
   width:20px; height:20px; border-radius:50%;
-  background:radial-gradient(circle at 34% 28%, #ffb3cb 0%, #ff5b8d 40%, #f01e69 100%);
-  box-shadow:0 0 16px rgba(255,70,130,.55), inset 0 -2px 4px rgba(120,0,40,.35);
+  background:radial-gradient(circle at 34% 28%, #bdf5d5 0%, #4fd39a 40%, #16a56c 100%);
+  box-shadow:0 0 16px rgba(60,210,140,.55), inset 0 -2px 4px rgba(0,60,30,.35);
   flex:none;
 }
-.brand:hover .dot{ box-shadow:0 0 22px rgba(255,70,130,.8); }
+.brand:hover .dot{ box-shadow:0 0 22px rgba(60,210,140,.8); }
 .brand .dot{ transition:box-shadow .3s var(--ease); }
 
 /* 三档开关：等宽三格 + 滑动指示块 */
@@ -206,7 +206,7 @@ html[data-theme="light"] .orb{ opacity:.34; }
 .theme button[aria-pressed="true"]{ color:var(--text-strong); }
 .theme button svg{ width:14px; height:14px; flex:none; }
 .theme button:focus-visible{
-  outline:2px solid rgba(255,110,160,.9);
+  outline:2px solid rgba(80,210,150,.9);
   outline-offset:2px;
 }
 
@@ -229,9 +229,9 @@ main{
   background:var(--hero-g);
   -webkit-background-clip:text; background-clip:text;
   color:transparent;
-  filter:drop-shadow(0 10px 26px rgba(255,60,120,.16));
+  filter:drop-shadow(0 10px 26px rgba(60,200,130,.16));
 }
-html[data-theme="light"] .hero h1{ filter:drop-shadow(0 10px 24px rgba(255,110,160,.28)); }
+html[data-theme="light"] .hero h1{ filter:drop-shadow(0 10px 24px rgba(45,160,105,.24)); }
 
 .hero p{
   margin:16px 0 0;
@@ -463,10 +463,17 @@ footer{
     },
     {
       name: 'CAN 固件升级',
-      file: 'CANUpdater/index.html',
+      file: 'CANUpdater/Updater.html',
       desc: 'CAN 适配器 DFU 固件刷写，支持 CANable / PEAK 等多种固件',
       tint: '34,211,238',
       icon: 'flash'
+    },
+    {
+      name: 'DBC 信号解析',
+      file: 'DBCAnalyzer/DBCAnalyzer.html',
+      desc: 'DBC 信号解析、逐帧解码与曲线回放',
+      tint: '95,214,196',
+      icon: 'pulse'
     }
     /* 例：
     ,{ name: '新工具', file: 'NewTool.html', desc: '一句话说明', tint: '34,211,238', icon: 'box' }
@@ -493,7 +500,7 @@ footer{
     root.style.colorScheme = theme;
 
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', theme === 'dark' ? '#0b0410' : '#fff7fa');
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#06110c' : '#f3fbf6');
 
     if (group) {
       group.style.setProperty('--i', ORDER.indexOf(mode));
@@ -533,7 +540,7 @@ footer{
     var a = document.createElement('a');
     a.className = 'card';
     a.href = t.file;
-    a.style.setProperty('--tint', t.tint || '255,90,140');
+    a.style.setProperty('--tint', t.tint || '79,201,148');
 
     var ico = document.createElement('span');
     ico.className = 'ico';

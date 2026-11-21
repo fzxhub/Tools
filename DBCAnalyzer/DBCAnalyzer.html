@@ -1,0 +1,2246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DBC 信号解析工具</title>
+<style>
+:root,[data-theme="dark"]{
+  --bg:#0d1117; --bg2:#161b22; --panel:#161b22; --panel2:#1c2128;
+  --border:#30363d; --border2:#21262d; --border-hover:#484f58;
+  --fg:#e6edf3; --fg2:#8b949e; --fg3:#6e7681;
+  --accent:#58a6ff; --accent2:#1f6feb; --accent-hover:#2d7ff5; --green:#3fb950; --orange:#d29922;
+  --red:#f85149; --purple:#bc8cff; --cyan:#39c5cf;
+  --hover:#1c2530; --sel:#16304a; --badge-bg:#132033;
+  --danger-border:#6e2727; --danger-hover:#3a1e1e;
+  --orange-dim:#6b4b12; --tip-bg:#0d1117ee;
+  --scroll-thumb:#30363d; --scroll-thumb-hover:#484f58;
+  --chart-lane1:#12171e; --chart-lane2:#141a22; --chart-grid:#21262d;
+  --chart-axis:#6e7681; --chart-label:#8b949e; --chart-cursor:#d29922;
+  --chart-band:rgba(210,153,34,.09); --chart-cursor-bg:#0d1117ee;
+  --mono:Consolas,"Cascadia Code","SF Mono",Menlo,monospace;
+}
+[data-theme="light"]{
+  --bg:#ffffff; --bg2:#f6f8fa; --panel:#ffffff; --panel2:#f6f8fa;
+  --border:#d0d7de; --border2:#e1e4e8; --border-hover:#afb8c1;
+  --fg:#1f2328; --fg2:#59636e; --fg3:#818b98;
+  --accent:#0969da; --accent2:#0969da; --accent-hover:#0550ae; --green:#1a7f37; --orange:#9a6700;
+  --red:#cf222e; --purple:#8250df; --cyan:#1b7c83;
+  --hover:#eaeef2; --sel:#ddf4ff; --badge-bg:#ddf4ff;
+  --danger-border:#ff8182; --danger-hover:#ffebe9;
+  --orange-dim:#d4a72c; --tip-bg:#ffffffee;
+  --scroll-thumb:#d0d7de; --scroll-thumb-hover:#afb8c1;
+  --chart-lane1:#f6f8fa; --chart-lane2:#ffffff; --chart-grid:#e1e4e8;
+  --chart-axis:#818b98; --chart-label:#59636e; --chart-cursor:#9a6700;
+  --chart-band:rgba(154,103,0,.10); --chart-cursor-bg:#ffffffee;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;overflow:hidden}
+a{color:var(--accent);text-decoration:none}
+button,input,select{font-family:inherit}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:6px}
+::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover)}
+::-webkit-scrollbar-track{background:transparent}
+
+.app{display:flex;flex-direction:column;height:100vh}
+header{height:56px;flex:none;display:flex;align-items:center;gap:14px;padding:0 18px;background:var(--bg2);border-bottom:1px solid var(--border)}
+header .logo{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:600}
+header .logo .dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green)}
+header .sub{color:var(--fg3);font-size:12px;font-weight:400}
+header .spacer{flex:1}
+.main{flex:1;display:flex;min-height:0}
+.sidebar{width:290px;flex:none;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+/* 侧栏宽度拖拽条 */
+.sidebar-resizer{width:5px;flex:none;cursor:col-resize;background:var(--border2);position:relative;transition:background .15s;z-index:3}
+.sidebar-resizer:hover,.sidebar-resizer.dragging{background:var(--accent)}
+.sidebar-resizer::after{content:"";position:absolute;inset:0 -3px}
+.sidebar .sec{padding:14px;border-bottom:1px solid var(--border2)}
+.sidebar .sec h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--fg2)}
+.upload-row{display:flex;flex-direction:column;gap:8px}
+.file-label{display:block;position:relative;border:1px dashed var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;background:var(--panel2);transition:.15s}
+.file-label:hover{border-color:var(--accent);background:var(--hover)}
+.file-label.drag-over{border-color:var(--accent);border-style:solid;background:var(--sel);box-shadow:inset 0 0 0 1px var(--accent)}
+.file-label input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.file-label .ft{font-size:11px;color:var(--fg3)}
+.file-label .fn{font-size:13px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:226px}
+.file-ok{position:absolute;top:9px;right:10px;width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);display:none;z-index:2}
+.file-ok.on{display:block}
+/* 主题切换：单个带图标的药丸按钮，点击循环切换 */
+.theme-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--panel2);color:var(--fg2);border-radius:20px;padding:4px 11px;font-size:12px;cursor:pointer;transition:.15s;white-space:nowrap;flex:none}
+.theme-pill:hover{border-color:var(--accent);color:var(--fg);background:var(--hover)}
+.theme-ico{width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center}
+.theme-ico svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.btn{border:1px solid var(--border);background:var(--panel2);color:var(--fg);padding:7px 12px;border-radius:6px;cursor:pointer;transition:.15s;font-size:13px}
+.btn:hover{background:var(--hover);border-color:#484f58}
+.btn.primary{background:var(--accent2);border-color:var(--accent2);color:#fff;font-weight:600}
+.btn.primary:hover{background:var(--accent-hover)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.danger{color:var(--red);border-color:var(--danger-border)}
+.btn.danger:hover{background:var(--danger-hover);border-color:var(--red)}
+.btn.sm{padding:4px 9px;font-size:12px}
+
+.tree-wrap{flex:1;overflow:auto;padding:10px 8px}
+.tree-search{width:100%;margin-bottom:8px}
+input[type=text],select{background:var(--bg);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:7px 9px;outline:none;width:100%}
+input[type=text]:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(88,166,255,.15)}
+.msg-item{margin-bottom:2px}
+.msg-head{display:flex;align-items:center;gap:6px;padding:6px 6px;border-radius:6px;cursor:pointer;user-select:none}
+.msg-head:hover{background:var(--panel2)}
+.msg-head.active{background:var(--sel)}
+.msg-head .arrow{width:12px;color:var(--fg3);font-size:10px;transition:transform .15s}
+.msg-head.open .arrow{transform:rotate(90deg)}
+.msg-head .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.msg-head .id{font-family:var(--mono);font-size:11px;color:var(--accent);background:var(--badge-bg);padding:1px 5px;border-radius:4px}
+.msg-head .fd{font-size:9px;color:var(--orange);border:1px solid var(--orange);border-radius:3px;padding:0 3px}
+.sig-list{display:none;padding:2px 0 6px 24px}
+.msg-item.open .sig-list{display:block}
+.sig-item{display:flex;align-items:center;gap:7px;padding:3px 6px;border-radius:5px;font-size:12px;cursor:pointer}
+.sig-item:hover{background:var(--panel2)}
+.sig-item input{accent-color:var(--accent);width:14px;height:14px;cursor:pointer}
+.sig-item[draggable=true]{cursor:grab}
+.sig-item[draggable=true]:active{cursor:grabbing}
+.sig-item.drag-src{opacity:.5}
+.sig-item .sname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sig-item .mux{font-size:9px;color:var(--purple);border:1px solid var(--purple);border-radius:3px;padding:0 3px}
+.sig-item .unit{color:var(--fg3);font-size:11px}
+.sig-item .custom{font-size:9px;color:var(--orange);border:1px solid var(--orange);border-radius:3px;padding:0 3px}
+.sig-edit{margin-left:auto;flex:none;width:19px;height:19px;line-height:1;padding:0;border:1px solid transparent;background:transparent;color:var(--fg3);border-radius:4px;cursor:pointer;font-size:12px}
+.sig-edit:hover{color:var(--accent);border-color:var(--border);background:var(--panel2)}
+.chip-color{
+  position:relative; width:16px; height:16px; border-radius:4px; flex:none;
+  display:inline-block; cursor:pointer; z-index:1;
+  transition:transform .15s ease,box-shadow .15s ease;
+}
+.chip-color::before{
+  content:""; position:absolute; inset:-6px; border-radius:9px;
+  background:transparent; transition:background .15s ease;
+}
+.chip-color:hover::before{background:rgba(128,128,128,.16)}
+.chip-color:hover{transform:scale(1.1);box-shadow:0 0 0 2px rgba(255,255,255,.45),0 0 8px currentColor}
+.chip-color:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+/* 创建信号弹窗 */
+.modal-mask{position:fixed;inset:0;background:#0009;z-index:50;display:none;align-items:center;justify-content:center}
+.modal{width:660px;max-width:94vw;max-height:90vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:10px;box-shadow:0 20px 60px #000b}
+.modal h3{margin:0;padding:14px 18px;border-bottom:1px solid var(--border);font-size:15px}
+.modal .mb{padding:14px 18px}
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 14px}
+.form-grid .f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.form-grid .f.wide{grid-column:span 2}
+.form-grid label{font-size:11px;color:var(--fg2)}
+.form-grid input[type=checkbox]{width:auto;vertical-align:middle;margin-right:5px}
+.form-grid .chk{display:flex;align-items:center;font-size:12px;color:var(--fg);height:33px}
+.modal .foot{position:sticky;bottom:0;display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border);background:var(--panel);z-index:1}
+.hint-sm{font-size:11px;color:var(--fg3)}
+
+/* 逐帧表内顶部的数据概览：横向紧凑统计条 */
+.ov-strip{display:flex;gap:10px;padding:12px 16px 0;flex:none;flex-wrap:wrap}
+.ov-strip .ov-row{flex:1;min-width:110px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:7px 11px}
+.ov-strip .ov-k{display:block;font-size:11px;color:var(--fg2)}
+.ov-strip .ov-v{display:block;font-family:var(--mono);font-size:18px;font-weight:600;color:var(--fg);margin-top:2px}
+.ov-strip .ov-v.b{color:var(--accent)} .ov-strip .ov-v.g{color:var(--green)} .ov-strip .ov-v.o{color:var(--orange)}
+
+/* 曲线纵轴模式切换 */
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;flex:none}
+.seg-btn{background:var(--panel2);border:0;border-right:1px solid var(--border);color:var(--fg2);padding:5px 12px;font-size:12px;cursor:pointer;transition:.15s}
+.seg-btn:last-child{border-right:0}
+.seg-btn:hover{color:var(--fg);background:var(--hover)}
+.seg-btn.active{background:var(--accent2);color:#fff;font-weight:600}
+
+.content{flex:1;min-width:0;display:flex;flex-direction:column}
+
+/* 主模块切换：放在顶栏右侧，与标题同一行 */
+.tabs{display:flex;gap:4px;align-items:center;padding:0;border-bottom:0;flex:none;margin-right:24px}
+.tab{padding:6px 13px;color:var(--fg2);cursor:pointer;border:1px solid var(--border);border-radius:6px;background:var(--panel2);font-size:12px;transition:.15s;white-space:nowrap;user-select:none}
+.tab:hover{color:var(--fg);background:var(--hover)}
+.tab.active{color:#fff;background:var(--accent2);border-color:var(--accent2);font-weight:600}
+@media (max-width:1100px){header{gap:8px;padding:0 10px}header .sub{display:none}.tabs{margin-right:12px}.tab{padding:6px 9px}}
+.tab-pane{display:none;flex:1;min-height:0;flex-direction:column}
+.tab-pane.active{display:flex}
+
+.toolbar{display:flex;align-items:center;gap:8px;padding:10px 16px;flex:none;flex-wrap:wrap}
+.toolbar .grow{flex:1}
+.toolbar label{color:var(--fg2);font-size:12px}
+
+/* 表格 */
+.table-wrap{flex:1;overflow:auto;margin:0 16px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:12px}
+thead th{position:sticky;top:0;z-index:2;background:var(--panel2);color:var(--fg2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;font-weight:600}
+tbody td{padding:6px 10px;border-bottom:1px solid var(--border2);white-space:nowrap;font-family:var(--mono)}
+tbody tr:hover{background:var(--hover)}
+tbody tr.sel{background:var(--sel)}
+td.num{text-align:right}
+/* 逐帧表：原始报文父行 + 信号展开子行 */
+.frame-row{cursor:pointer}
+.frame-row .caret{display:inline-block;width:12px;color:var(--fg3);font-size:10px;transition:transform .15s}
+.frame-row.open .caret{transform:rotate(90deg)}
+.sig-row>td{padding:0;background:var(--bg2)}
+.sig-row.collapsed{display:none}
+.sig-expand{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px;padding:8px 12px 10px 28px}
+.sig-exp-item{display:flex;align-items:baseline;gap:6px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;min-width:0}
+.sig-exp-name{color:var(--fg2);font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sig-exp-val{font-family:var(--mono);color:var(--green);font-weight:600;white-space:nowrap}
+.sig-exp-unit{color:var(--fg3);font-size:10px}
+.sig-exp-raw{color:var(--fg3);font-family:var(--mono);font-size:10px;white-space:nowrap}
+.sig-none{color:var(--fg3);padding:8px 12px 8px 28px;font-size:12px}
+.mono{font-family:var(--mono)}
+.fd-tag{color:var(--orange);font-weight:700}
+.dir-tag{color:var(--fg3);font-size:10px}
+.val{color:var(--green)}
+.raw{color:var(--fg3);font-size:11px}
+#pane-table{position:relative}
+.table-pager{
+  position:absolute; right:30px; bottom:26px; z-index:6;
+  display:flex; align-items:center; gap:8px;
+  max-width:calc(100% - 36px);
+  padding:7px; border-radius:999px;
+  background:var(--switch-bg); border:1px solid var(--switch-line);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  box-shadow:0 14px 36px -18px rgba(0,0,0,.75);
+  overflow-x:auto;
+}
+.table-pager .btn{white-space:nowrap;flex:none}
+@media(max-width:760px){
+  .table-pager{right:18px; bottom:18px; gap:6px; padding:5px}
+  .table-pager .btn{padding:5px 9px; font-size:11px}
+}
+
+/* 回放 */
+.play-layout{flex:1;display:flex;min-height:0}
+.play-left{position:relative;flex:1;min-width:0;display:flex;flex-direction:column;padding:0 16px 12px}
+.play-controls{
+  position:absolute; left:28px; right:28px; bottom:22px; z-index:6;
+  display:flex; align-items:center; gap:10px;
+  padding:7px 12px; border-radius:999px;
+  background:var(--switch-bg); border:1px solid var(--switch-line);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  box-shadow:0 14px 36px -18px rgba(0,0,0,.75);
+  flex:none;
+}
+[data-theme="light"] .play-controls{background:rgba(255,255,255,.86)}
+.icon-btn{width:72px;height:36px;border-radius:999px;border:1px solid var(--border);background:var(--panel2);color:var(--fg);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex:none}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+.icon-btn.play{width:72px;height:36px;background:var(--accent2);border-color:var(--accent2);color:#fff;font-size:16px}
+.icon-btn.play:hover{background:var(--accent-hover);color:#fff}
+.timeline{flex:1;position:relative;display:flex;align-items:center;min-width:120px;height:36px}
+.seek-time{
+  position:absolute; bottom:calc(50% + 14px); left:0;
+  transform:translateX(-50%);
+  font-family:var(--mono); font-size:11px; color:var(--accent);
+  background:var(--tip-bg); border:1px solid var(--switch-line);
+  border-radius:999px; padding:2px 8px; white-space:nowrap;
+  pointer-events:none; z-index:7;
+  box-shadow:0 6px 18px -8px rgba(0,0,0,.8);
+}
+input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
+.speed-sel{width:72px;height:36px;flex:none}
+.live-frame{flex:1;overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--panel);margin-top:4px;transition:border-color .15s,box-shadow .15s}
+.live-frame.drag-over{border-color:var(--accent);box-shadow:inset 0 0 0 2px rgba(88,166,255,.25)}
+.watch-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--border2);min-height:40px}
+.watch-empty{color:var(--fg3);font-size:12px;font-style:italic}
+/* 固定显示卡片右上角的单个删除按钮 */
+.sig-card{position:relative}
+.card-x{position:absolute;top:4px;right:6px;cursor:pointer;color:var(--fg3);font-size:15px;line-height:1;padding:0 3px;border-radius:4px}
+.card-x:hover{color:var(--red);background:var(--danger-hover)}
+.sig-card .n{padding-right:18px}
+.live-grid{display:grid;grid-template-columns:var(--play-cols,repeat(auto-fill,160px));align-items:start;gap:10px;padding:12px 24px 68px}
+.sig-card{min-width:0;max-width:none;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:9px 11px}
+.sig-card .n{font-size:11px;color:var(--fg2);display:flex;align-items:center;gap:8px}
+.sig-card .vv{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--fg);margin-top:3px;display:flex;align-items:center;gap:5px}
+.sig-card .vv small{font-size:11px;color:var(--fg3);font-weight:400;flex:none}
+.sig-card .vv .sparkline{margin-left:auto}
+.sparkline{flex:none;width:min(70px,38%);height:22px;opacity:.9}
+.sparkline .sl-path{fill:none;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+.sparkline .sl-cur{stroke-width:1}
+.sparkline.mini-chart{cursor:pointer;pointer-events:auto;opacity:1;transition:filter .15s}
+.sparkline.mini-chart:hover{filter:brightness(1.35) drop-shadow(0 0 3px currentColor)}
+/* 信号命中：只在名字旁的指示灯闪烁，不再闪整个卡片 */
+.sig-card .n .sig-name{display:inline-flex;align-items:center;gap:6px;flex:1;min-width:0}
+.sig-card .n .sig-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.sig-card .n .wc-msg{flex:none;max-width:46%;color:var(--fg3);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sig-dot{width:8px;height:8px;border-radius:50%;background:var(--border);flex:none;display:inline-block;transition:background .1s}
+.sig-card.changed .sig-dot{animation:dotHit .6s ease-out}
+@keyframes dotHit{
+  0%{background:#3fb950;box-shadow:0 0 9px 2px rgba(63,185,80,.9)}
+  60%{background:#3fb950;box-shadow:0 0 6px 1px rgba(63,185,80,.5)}
+  100%{background:var(--border);box-shadow:none}
+}
+@media (max-width:900px){
+  .play-left{padding:0 10px 10px}
+  .play-controls{left:20px; right:20px; bottom:18px; gap:6px; padding:6px 8px}
+  .live-grid{padding:10px 20px 64px}
+  .msg-watch-block{width:calc(100% + 20px); margin-left:-10px; margin-right:-10px}
+  .msg-watch-grid{padding:10px 9px 14px}
+}
+
+/* 曲线 */
+.chart-toolbar{flex:none}
+.chart-box{flex:1;margin:0 16px 8px;border:1px solid var(--border);border-radius:8px;background:var(--panel);position:relative;overflow:hidden;transition:border-color .15s,box-shadow .15s}
+.chart-box.drag-over{border-color:var(--accent);border-style:solid;box-shadow:inset 0 0 0 2px rgba(88,166,255,.25)}
+.chart-box.drag-over .chart-empty{border:1px dashed var(--accent);border-radius:10px;background:var(--badge-bg)}
+#chartCanvas{width:100%;height:100%;display:block;cursor:crosshair}
+.chart-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--fg3);flex-direction:column;gap:8px;text-align:center;padding:20px}
+.tip{position:absolute;pointer-events:none;background:var(--tip-bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:11px;font-family:var(--mono);z-index:5;box-shadow:0 6px 20px #0008;min-width:140px;display:none}
+.tip .tr{display:flex;justify-content:space-between;gap:14px}
+.tip .tr .sv{font-weight:600}
+/* 时间卡尺 */
+.cursor-cnt{font-family:var(--mono);color:var(--orange);font-size:12px;white-space:nowrap}
+.cursor-info{position:absolute;top:10px;right:12px;z-index:4;pointer-events:none;background:var(--tip-bg);border:1px solid var(--orange-dim);border-radius:6px;padding:7px 10px;font-family:var(--mono);font-size:11px;color:var(--fg2);box-shadow:0 4px 16px #0007;min-width:158px}
+.cursor-info .ci-h{color:var(--orange);font-size:10px;letter-spacing:.06em;margin-bottom:3px}
+.cursor-info .ci-r{display:flex;justify-content:space-between;gap:12px;line-height:1.6}
+.cursor-info .ci-r b{color:var(--fg);font-weight:600}
+.cursor-info .ci-d{margin-top:4px;padding-top:4px;border-top:1px solid var(--border);color:var(--orange);font-weight:600}
+
+.empty-state{flex:1;display:flex;align-items:center;justify-content:center;color:var(--fg3);flex-direction:column;gap:10px;text-align:center}
+.empty-state .big{font-size:42px;opacity:.3}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--border);padding:10px 18px;border-radius:8px;box-shadow:0 8px 30px #0009;z-index:99;display:none;font-size:13px}
+.toast.err{border-color:var(--red);color:var(--red)}
+.hint{font-size:11px;color:var(--fg3)}
+/* ================= CANUpdater 风格皮肤（仅配色 / 质感，不改布局） ================= */
+:root,[data-theme="dark"]{
+  --bg:#06110c; --bg2:rgba(10,28,18,.72);
+  --panel:rgba(255,255,255,.055); --panel2:rgba(255,255,255,.075);
+  --border:rgba(255,255,255,.11); --border2:rgba(255,255,255,.07);
+  --border-hover:rgba(79,201,148,.45);
+  --fg:#f4f1f7; --fg2:#a9a1b5; --fg3:#7d7489;
+  --accent:#4fd39a; --accent2:#2f9e68; --accent-hover:#5fd6a4;
+  --green:#4ad9a4; --orange:#ffc46b; --red:#ff7387; --purple:#5fd6c4; --cyan:#4ad9a4;
+  --hover:rgba(79,201,148,.10); --sel:rgba(79,201,148,.16); --badge-bg:rgba(79,201,148,.12);
+  --danger-border:rgba(255,115,135,.45); --danger-hover:rgba(255,115,135,.10);
+  --orange-dim:rgba(255,196,107,.32); --tip-bg:rgba(6,17,12,.92);
+  --scroll-thumb:rgba(255,255,255,.16); --scroll-thumb-hover:rgba(255,255,255,.26);
+  --chart-lane1:rgba(255,255,255,.025); --chart-lane2:rgba(255,255,255,.045);
+  --chart-grid:rgba(255,255,255,.08);
+  --chart-axis:#7d7489; --chart-label:#a9a1b5; --chart-cursor:#ffc46b;
+  --chart-band:rgba(255,196,107,.09); --chart-cursor-bg:rgba(6,17,12,.92);
+  --switch-bg:rgba(190,255,220,.07);
+  --switch-line:rgba(210,255,230,.16);
+  --knob:rgba(190,255,220,.16);
+  --grain:.13;
+}
+[data-theme="light"]{
+  --bg:#f3fbf6; --bg2:rgba(255,255,255,.72);
+  --panel:rgba(255,255,255,.66); --panel2:rgba(255,255,255,.82);
+  --border:rgba(18,60,36,.13); --border2:rgba(18,60,36,.08);
+  --border-hover:rgba(47,174,122,.40);
+  --fg:#1f2b24; --fg2:#5f7768; --fg3:#8a9b90;
+  --accent:#2fae7a; --accent2:#2fae7a; --accent-hover:#1f8a5a;
+  --green:#128a63; --orange:#b26a00; --red:#d62f4f; --purple:#1f8a5a; --cyan:#128a63;
+  --hover:rgba(47,174,122,.09); --sel:rgba(47,174,122,.13); --badge-bg:rgba(47,174,122,.11);
+  --danger-border:rgba(214,47,79,.40); --danger-hover:rgba(214,47,79,.08);
+  --orange-dim:rgba(178,106,0,.30); --tip-bg:rgba(255,255,255,.94);
+  --scroll-thumb:rgba(18,60,36,.18); --scroll-thumb-hover:rgba(18,60,36,.30);
+  --chart-lane1:rgba(255,255,255,.60); --chart-lane2:rgba(255,255,255,.82);
+  --chart-grid:rgba(18,60,36,.09);
+  --chart-axis:#8a9b90; --chart-label:#5f7768; --chart-cursor:#b26a00;
+  --chart-band:rgba(178,106,0,.10); --chart-cursor-bg:rgba(255,255,255,.94);
+  --switch-bg:rgba(255,255,255,.60);
+  --switch-line:rgba(18,60,36,.12);
+  --knob:#ffffff;
+  --grain:.07;
+}
+body{
+  background:
+    radial-gradient(115% 62% at 8% -10%, rgba(58,220,145,.28), transparent 58%),
+    radial-gradient(85% 55% at 100% 0%, rgba(45,190,185,.22), transparent 60%),
+    radial-gradient(100% 50% at 50% 110%, rgba(120,220,165,.16), transparent 68%),
+    var(--bg);
+  background-attachment:fixed;
+}
+[data-theme="light"] body{
+  background:
+    radial-gradient(115% 62% at 8% -10%, rgba(120,220,165,.55), transparent 60%),
+    radial-gradient(85% 55% at 100% 0%, rgba(150,215,255,.40), transparent 62%),
+    radial-gradient(100% 50% at 50% 110%, rgba(190,255,220,.60), transparent 68%),
+    var(--bg);
+}
+body::after{
+  content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+  opacity:var(--grain); mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+  background-size:180px 180px;
+}
+.app{position:relative; z-index:1}
+header,.sidebar,.table-wrap,.chart-box,.live-frame,.modal,.toast,.tip,.cursor-info,
+.ov-strip .ov-row,.sig-card,.sig-exp-item{
+  -webkit-backdrop-filter:blur(18px) saturate(1.25);
+  backdrop-filter:blur(18px) saturate(1.25);
+}
+header{
+  box-shadow:0 12px 34px -26px rgba(0,0,0,.75);
+  background:color-mix(in srgb, var(--bg2) 82%, transparent);
+  display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:14px;
+}
+header .logo{min-width:0; overflow:hidden; white-space:nowrap}
+.header-actions{justify-self:end; display:flex; align-items:center; gap:8px}
+.sidebar{
+  position:relative;
+  margin:12px 6px 12px 12px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow:0 20px 44px -26px rgba(0,0,0,.72);
+}
+[data-theme="light"] .sidebar{box-shadow:0 18px 40px -24px rgba(25,90,55,.34)}
+.sidebar-resizer{border-radius:999px; margin:12px 0}
+header .logo .mark{
+  width:42px; height:42px; flex:none; border-radius:11px;
+  background:linear-gradient(145deg,#4fd39a,#2f9e68);
+  color:#fff; font:700 13px/42px var(--mono); text-align:center; letter-spacing:.5px;
+  box-shadow:0 6px 22px -6px rgba(79,201,148,.60), inset 0 1px 0 rgba(255,255,255,.35);
+}
+html[data-theme="light"] header .logo .mark{
+  background:linear-gradient(145deg,#2fae7a,#1f8a5a);
+  box-shadow:0 6px 22px -6px rgba(47,174,122,.45), inset 0 1px 0 rgba(255,255,255,.6);
+}
+/* 顶栏三档控件：主题与页面切换同款胶囊，页面切换居中 */
+.theme,.tabs{
+  position:relative; display:grid; grid-template-columns:repeat(3,1fr); gap:0;
+  padding:4px; border-radius:999px;
+  background:var(--switch-bg); border:1px solid var(--switch-line);
+  -webkit-backdrop-filter:blur(14px) saturate(1.3);
+  backdrop-filter:blur(14px) saturate(1.3);
+  transition:background .35s ease, border-color .35s ease;
+}
+.theme{justify-self:end}
+.tabs{justify-self:center; margin:0}
+.theme .knob,.tabs .knob{
+  position:absolute; top:4px; left:4px;
+  width:calc((100% - 8px) / 3); height:calc(100% - 8px);
+  border-radius:999px; background:var(--knob);
+  transition:transform .34s cubic-bezier(.22,.61,.36,1), background .35s ease;
+  box-shadow:0 2px 10px rgba(0,0,0,.16);
+  pointer-events:none;
+}
+.theme .knob{transform:translateX(calc(var(--i,0) * 100%))}
+.tabs .knob{transform:translateX(calc(var(--ti,0) * 100%))}
+.theme button,.tab{
+  position:relative; z-index:1;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  padding:7px 13px; border:0; border-radius:999px; background:none;
+  color:var(--fg2); font:inherit; font-size:12.5px; line-height:1;
+  cursor:pointer; white-space:nowrap; user-select:none;
+  transition:color .25s ease;
+}
+.theme button:hover,.tab:hover{color:var(--fg)}
+.theme button[aria-pressed="true"],.tab.active{color:var(--fg); font-weight:600}
+.theme button svg{
+  width:14px; height:14px; flex:none; stroke:currentColor; fill:none;
+  stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;
+}
+.theme button:focus-visible,.tab:focus-visible{outline:2px solid rgba(79,201,148,.85);outline-offset:2px}
+.theme-pill{
+  border-color:rgba(79,201,148,.30);
+  box-shadow:0 6px 18px -12px rgba(0,0,0,.65);
+}
+[data-theme="light"] .theme-pill{border-color:rgba(47,174,122,.28)}
+.theme-pill:hover{border-color:var(--accent);color:var(--fg);background:var(--hover)}
+.btn:hover{border-color:var(--border-hover)}
+.btn.primary,.seg-btn.active,.icon-btn.play{
+  background:linear-gradient(135deg,#4fd39a,#2f9e68);
+  border-color:rgba(79,201,148,.65);
+  color:#fff;
+  box-shadow:0 8px 22px -12px rgba(79,201,148,.85), inset 0 1px 0 rgba(255,255,255,.28);
+}
+[data-theme="light"] .btn.primary,
+[data-theme="light"] .seg-btn.active,
+[data-theme="light"] .icon-btn.play{
+  background:linear-gradient(135deg,#2fae7a,#1f8a5a);
+  border-color:rgba(47,174,122,.60);
+}
+.btn.primary:hover,.seg-btn:hover,.icon-btn.play:hover{filter:brightness(1.08)}
+input[type=text]:focus,select:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 2px rgba(79,201,148,.16);
+}
+[data-theme="light"] input[type=text]:focus,
+[data-theme="light"] select:focus{box-shadow:0 0 0 2px rgba(47,174,122,.14)}
+.modal-mask{background:rgba(3,12,7,.60);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.modal,.toast,.tip,.cursor-info,.table-wrap,.chart-box,.live-frame{
+  box-shadow:0 22px 50px -24px rgba(0,0,0,.75);
+}
+[data-theme="light"] .modal,.toast,.tip,.cursor-info,.table-wrap,.chart-box,.live-frame{
+  box-shadow:0 20px 44px -24px rgba(25,90,55,.38);
+}
+.live-frame.drag-over,.chart-box.drag-over{border-color:var(--accent);box-shadow:inset 0 0 0 2px rgba(79,201,148,.25)}
+@keyframes dotHit{
+  0%{background:var(--green);box-shadow:0 0 9px 2px rgba(79,201,148,.9)}
+  60%{background:var(--green);box-shadow:0 0 6px 1px rgba(79,201,148,.5)}
+  100%{background:var(--border);box-shadow:none}
+}
+@media(max-width:1100px){
+  header{gap:8px; padding:0 10px}
+  header .sub{display:none}
+  .theme button span{display:none}
+  .theme button,.tab{padding:7px 10px}
+}
+
+/* ================= 全组件胶囊玻璃风格：统一参考主题按钮 ================= */
+:root{ --glass-blur:blur(14px) saturate(1.3); }
+
+/* 按钮：胶囊 + 玻璃 + 细边框 + 柔和阴影 */
+.btn,.icon-btn,.file-label,.btn.sm{
+  border-radius:999px;
+}
+.btn{
+  background:var(--switch-bg);
+  border:1px solid var(--switch-line);
+  color:var(--fg2);
+  -webkit-backdrop-filter:var(--glass-blur);
+  backdrop-filter:var(--glass-blur);
+  box-shadow:0 4px 14px -8px rgba(0,0,0,.5);
+  transition:background .25s ease,border-color .25s ease,color .25s ease,transform .2s ease,box-shadow .25s ease;
+}
+.btn:hover{ color:var(--fg); background:var(--hover); border-color:var(--border-hover); }
+.btn:active{ transform:scale(.97); }
+.btn.danger{ background:color-mix(in srgb, var(--red) 9%, transparent); border-color:var(--danger-border); color:var(--red); }
+.btn.danger:hover{ background:var(--danger-hover); color:var(--red); }
+.btn:disabled,.btn:disabled:hover{ opacity:.45; transform:none; }
+.icon-btn{
+  background:var(--switch-bg); border:1px solid var(--switch-line);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  transition:background .25s ease,border-color .25s ease,color .25s ease;
+}
+.icon-btn:hover{ border-color:var(--accent); color:var(--accent); background:var(--hover); }
+
+/* 输入框 / 下拉：同款胶囊玻璃，聚焦绿色环 */
+input[type=text],select,.speed-sel{
+  border-radius:999px;
+  background:var(--switch-bg);
+  border:1px solid var(--switch-line);
+  color:var(--fg);
+  -webkit-backdrop-filter:var(--glass-blur);
+  backdrop-filter:var(--glass-blur);
+  padding:7px 13px;
+  transition:border-color .25s ease,box-shadow .25s ease,background .25s ease;
+}
+input[type=text]:focus,select:focus{
+  border-color:rgba(79,201,148,.65);
+  box-shadow:0 0 0 3px rgba(79,201,148,.14);
+  outline:none;
+}
+[data-theme="light"] input[type=text]:focus,
+[data-theme="light"] select:focus{
+  border-color:rgba(47,174,122,.60);
+  box-shadow:0 0 0 3px rgba(47,174,122,.13);
+}
+
+/* 文件上传区：大圆角玻璃卡 */
+.file-label{
+  border-radius:16px;
+  background:var(--switch-bg);
+  border:1px dashed var(--switch-line);
+  -webkit-backdrop-filter:var(--glass-blur);
+  backdrop-filter:var(--glass-blur);
+  transition:background .25s ease,border-color .25s ease,box-shadow .25s ease;
+}
+.file-label:hover{
+  border-color:var(--accent); border-style:solid; background:var(--hover);
+  box-shadow:0 6px 18px -12px rgba(79,201,148,.65);
+}
+.file-label.drag-over{ background:var(--sel); box-shadow:inset 0 0 0 1px var(--accent); }
+
+/* 纵轴分段切换：与主题按钮同款三档滑动胶囊 */
+.seg{
+  position:relative; display:grid; grid-template-columns:repeat(2,1fr); gap:0;
+  padding:4px; border-radius:999px;
+  background:var(--switch-bg); border:1px solid var(--switch-line);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  transition:background .35s ease,border-color .35s ease;
+}
+.seg .knob{
+  position:absolute; top:4px; left:4px;
+  width:calc((100% - 8px) / 2); height:calc(100% - 8px);
+  border-radius:999px; background:var(--knob);
+  box-shadow:0 2px 10px rgba(0,0,0,.16);
+  transform:translateX(calc(var(--i,0) * 100%));
+  transition:transform .34s cubic-bezier(.22,.61,.36,1),background .35s ease;
+  pointer-events:none;
+}
+.seg-btn{
+  position:relative; z-index:1; border:0; border-radius:999px; background:none;
+  padding:6px 13px; color:var(--fg2); font-size:12px; line-height:1;
+  transition:color .25s ease;
+}
+.seg-btn:hover{ color:var(--fg); background:none; }
+.seg-btn.active{ color:var(--fg); font-weight:600; background:none; }
+
+/* 徽标 / 小标签：胶囊 */
+.msg-head .id{ border-radius:999px; padding:2px 9px; }
+.msg-head .fd,.sig-item .mux,.sig-item .custom,.sig-edit,.card-x{ border-radius:999px; }
+.msg-head .fd,.sig-item .mux,.sig-item .custom{ padding:1px 7px; }
+.msg-head,.sig-item{ border-radius:10px; }
+.msg-head.active{ background:var(--sel); }
+.msg-head:hover,.sig-item:hover{ background:var(--hover); }
+
+/* 卡片与面板：更大圆角 + 玻璃，与胶囊控件同一质感 */
+.sig-card,.ov-strip .ov-row,.sig-exp-item{
+  border-radius:14px;
+  border:1px solid var(--switch-line);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+}
+.table-wrap,.chart-box,.live-frame,.sidebar,.modal{
+  border-radius:18px;
+  border:1px solid var(--switch-line);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  box-shadow:0 22px 50px -26px rgba(0,0,0,.72);
+}
+[data-theme="light"] .table-wrap,[data-theme="light"] .chart-box,
+[data-theme="light"] .live-frame,
+[data-theme="light"] .sidebar,[data-theme="light"] .modal{
+  box-shadow:0 20px 44px -24px rgba(25,90,55,.38);
+}
+.toast{
+  border-radius:999px; background:var(--switch-bg); border:1px solid var(--switch-line);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+}
+.tip,.cursor-info{
+  border-radius:12px; border:1px solid var(--switch-line);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+}
+
+/* 统一键盘焦点环 */
+button:focus-visible,input:focus-visible,select:focus-visible{
+  outline:2px solid rgba(79,201,148,.85); outline-offset:2px;
+}
+
+
+/* 归一化：与主题按钮同款自锁胶囊按钮（checkbox 保留为状态载体） */
+.toggle-pill{
+  position:relative; display:inline-flex; align-items:center; gap:8px;
+  padding:6px 13px; border-radius:999px;
+  background:var(--switch-bg); border:1px solid var(--switch-line);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  color:var(--fg2); font-size:12px; line-height:1;
+  cursor:pointer; user-select:none; white-space:nowrap;
+  box-shadow:0 4px 14px -8px rgba(0,0,0,.5);
+  transition:background .25s ease,border-color .25s ease,color .25s ease,box-shadow .25s ease;
+}
+.toggle-pill:hover{border-color:var(--border-hover); color:var(--fg)}
+.toggle-pill input{position:absolute; opacity:0; width:0; height:0; margin:0; pointer-events:none}
+.toggle-pill .tg-track{
+  position:relative; width:30px; height:17px; flex:none;
+  border-radius:999px; background:var(--knob); border:1px solid var(--switch-line);
+  transition:background .34s cubic-bezier(.22,.61,.36,1),border-color .34s ease;
+}
+.toggle-pill .tg-track::after{
+  content:""; position:absolute; top:2px; left:2px; width:11px; height:11px;
+  border-radius:50%; background:var(--fg3); box-shadow:0 2px 6px rgba(0,0,0,.28);
+  transition:transform .34s cubic-bezier(.22,.61,.36,1),background .34s ease;
+}
+.toggle-pill input:checked + .tg-track{
+  background:linear-gradient(135deg,#4fd39a,#2f9e68);
+  border-color:rgba(79,201,148,.65);
+}
+[data-theme="light"] .toggle-pill input:checked + .tg-track{
+  background:linear-gradient(135deg,#2fae7a,#1f8a5a);
+}
+.toggle-pill input:checked + .tg-track::after{transform:translateX(13px); background:#fff}
+.toggle-pill:has(input:checked){
+  color:var(--fg); font-weight:600; border-color:rgba(79,201,148,.45);
+  box-shadow:0 8px 22px -12px rgba(79,201,148,.85), inset 0 1px 0 rgba(255,255,255,.28);
+}
+.toggle-pill:has(input:disabled){cursor:not-allowed}
+.toggle-pill:has(input:focus-visible){outline:2px solid rgba(79,201,148,.85); outline-offset:2px}
+
+/* 回放报文：停止 / 播放 / 速率三者同尺寸胶囊 */
+.play-controls .icon-btn,
+.play-controls .speed-sel,
+.play-controls .cols-sel{
+  width:72px; height:36px; min-width:72px; flex:none;
+  border-radius:999px;
+}
+.play-controls .speed-sel{
+  padding:0 10px;
+  text-align:center; text-align-last:center;
+  font-size:12px;
+}
+.play-controls .cols-sel{
+  width:88px; min-width:88px; padding:0 8px;
+  text-align:center; text-align-last:center;
+  font-size:12px;
+}
+/* 下拉选项在暗黑/明亮主题下都保持清晰可读 */
+select option{background:var(--tip-bg); color:var(--fg)}
+
+/* 侧栏底部悬浮操作条：导出 DBC / 创建信号 */
+.tree-wrap{padding-bottom:70px}
+.sidebar-actions{
+  position:absolute; left:12px; right:12px; bottom:12px; z-index:5;
+  display:flex; align-items:center; gap:8px;
+  padding:7px; border-radius:999px;
+  background:var(--switch-bg); border:1px solid var(--switch-line);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  box-shadow:0 14px 36px -18px rgba(0,0,0,.75);
+}
+.sidebar-actions .btn{flex:1; min-width:0; white-space:nowrap; padding:6px 10px}
+
+/* 逐帧表滚动时：表头与悬浮分页保持清晰，不再被滚动内容透出 */
+header{position:relative; z-index:20}
+.table-wrap{
+  isolation:isolate;
+  scrollbar-gutter:stable;
+  background:color-mix(in srgb, var(--panel) 82%, var(--bg));
+}
+.table-wrap thead th{
+  z-index:4;
+  color:var(--fg);
+  background:color-mix(in srgb, var(--panel2) 94%, var(--bg));
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  box-shadow:0 1px 0 var(--border);
+}
+.table-wrap thead th:first-child{border-top-left-radius:18px}
+.table-wrap thead th:last-child{border-top-right-radius:18px}
+.table-pager{
+  background:color-mix(in srgb, var(--bg2) 90%, transparent);
+  box-shadow:0 16px 40px -16px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.12);
+}
+.table-pager .btn{color:var(--fg); font-weight:600}
+[data-theme="light"] .table-pager{background:rgba(255,255,255,.92)}
+
+/* 统计信息：由顶部多卡片改为报文区底部的单个悬浮胶囊 */
+.ov-strip{
+  position:absolute; left:30px; bottom:76px; z-index:6;
+  display:flex; align-items:center; flex-wrap:wrap; gap:0;
+  max-width:calc(100% - 60px);
+  margin:0; padding:6px;
+  border-radius:999px;
+  background:color-mix(in srgb, var(--bg2) 90%, transparent);
+  border:1px solid var(--switch-line);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  box-shadow:0 16px 40px -16px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.12);
+}
+[data-theme="light"] .ov-strip{background:rgba(255,255,255,.92)}
+.table-float-bar{
+  position:absolute; left:30px; right:30px; bottom:26px; z-index:6;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  pointer-events:none;
+}
+.table-float-bar > *{pointer-events:auto}
+.table-float-bar .ov-strip{
+  position:static; left:auto; bottom:auto; z-index:auto;
+  flex:0 1 auto; width:max-content; min-width:0;
+  max-width:calc(100% - 380px);
+  overflow-x:auto;
+}
+.table-float-bar .table-pager{
+  position:static; right:auto; bottom:auto; z-index:auto;
+  flex:none;
+}
+.ov-strip .ov-row{
+  position:relative; display:flex; align-items:baseline; gap:6px;
+  flex:none; min-width:0;
+  margin:0; padding:2px 12px;
+  background:none; border:0; border-radius:0;
+  box-shadow:none; -webkit-backdrop-filter:none; backdrop-filter:none;
+}
+.ov-strip .ov-row:not(:last-child)::after{
+  content:""; position:absolute; right:0; top:50%;
+  width:1px; height:14px; background:var(--border);
+  transform:translateY(-50%);
+}
+.ov-strip .ov-k{font-size:11px; color:var(--fg2); white-space:nowrap}
+.ov-strip .ov-v{margin:0; font-size:13px; line-height:1.2; white-space:nowrap}
+@media(max-width:1100px){
+  .table-float-bar{left:16px; right:16px; bottom:18px; gap:8px}
+  .ov-strip .ov-row{padding:2px 8px}
+}
+@media(max-width:760px){
+  .ov-strip{border-radius:16px; gap:2px 0}
+  .ov-strip .ov-row{padding:2px 10px}
+  .ov-strip .ov-row:not(:last-child)::after{display:none}
+}
+
+/* 顶部新增操作：Demo / 帮助，尺寸与主题控件一致 */
+.header-actions .btn.sm{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:64px; min-width:64px; height:36px;
+  padding:0 12px; font-size:12.5px; line-height:1;
+  white-space:nowrap;
+}
+@media(max-width:1100px){
+  .header-actions{gap:6px}
+  .header-actions .btn.sm{
+    width:56px; min-width:56px; height:36px;
+    padding:0 8px; font-size:11px;
+  }
+}
+
+/* 确认框 / 帮助弹窗 */
+.confirm-modal{width:460px}
+.confirm-modal .mb{font-size:13px; line-height:1.7; color:var(--fg2)}
+.help-modal{width:860px}
+.help-body{font-size:13px; line-height:1.75; color:var(--fg2)}
+.help-body h4{margin:16px 0 6px; color:var(--accent); font-size:14px}
+.help-body h4:first-child{margin-top:0}
+.help-body p,.help-body ul{margin:0 0 8px}
+.help-body ul{padding-left:20px}
+.help-body li{margin:3px 0}
+.help-body code{
+  font-family:var(--mono); background:var(--panel2); color:var(--fg);
+  border:1px solid var(--border2); padding:1px 5px; border-radius:5px;
+}
+.help-body .note{
+  background:var(--hover); border-left:3px solid var(--accent);
+  padding:9px 12px; border-radius:8px; margin:10px 0;
+}
+
+/* 按帧解码：帧数据行与信号行圆角化 */
+table{border-collapse:separate; border-spacing:0 4px}
+tbody .frame-row td{
+  background:color-mix(in srgb, var(--panel2) 82%, transparent);
+  border-top:1px solid var(--border2);
+  border-bottom:1px solid var(--border2);
+  border-left:0; border-right:0;
+  transition:background .18s ease, border-color .18s ease;
+}
+tbody .frame-row td:first-child{
+  border-left:1px solid var(--border2);
+  border-radius:12px 0 0 12px;
+  padding-left:14px;
+}
+tbody .frame-row td:last-child{
+  border-right:1px solid var(--border2);
+  border-radius:0 12px 12px 0;
+  padding-right:14px;
+}
+tbody .frame-row:hover td{background:var(--hover); border-color:var(--border-hover)}
+tbody .frame-row.open td{background:var(--sel); border-color:rgba(79,201,148,.45)}
+[data-theme="light"] tbody .frame-row.open td{border-color:rgba(47,174,122,.38)}
+tbody .sig-row>td{
+  background:color-mix(in srgb, var(--panel) 78%, transparent);
+  border:1px solid var(--border2);
+  border-radius:12px;
+  padding:0;
+}
+[data-theme="light"] tbody .sig-row>td{background:rgba(255,255,255,.72)}
+
+/* 回放报文：整帧报文固定显示 */
+.msg-head[draggable="true"]{cursor:grab}
+.msg-head[draggable="true"]:active{cursor:grabbing}
+.msg-watch-block{
+  grid-column:1/-1; width:calc(100% + 24px); min-width:0; max-width:none;
+  margin-left:-12px; margin-right:-12px;
+  border:1px solid var(--border2); border-radius:12px; overflow:hidden;
+  background:color-mix(in srgb, var(--panel) 78%, transparent);
+}
+[data-theme="light"] .msg-watch-block{background:rgba(255,255,255,.72)}
+.msg-watch-head{
+  position:relative; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  padding:9px 34px 9px 12px;
+  background:color-mix(in srgb, var(--panel2) 70%, transparent);
+  border-bottom:1px solid var(--border2);
+}
+.msg-watch-head .t{font-family:var(--mono); font-size:15px; font-weight:600; color:var(--accent)}
+.msg-watch-head .idb{
+  font-family:var(--mono); color:var(--accent); background:var(--badge-bg);
+  border-radius:999px; padding:2px 9px;
+}
+.msg-watch-head .mn{font-weight:600; color:var(--accent)}
+.msg-watch-head .data{font-family:var(--mono); color:var(--fg2); font-size:12px}
+.msg-watch-head .card-x{position:absolute; top:4px; right:6px; transform:none}
+.msg-watch-grid{display:grid; grid-template-columns:var(--play-cols,repeat(auto-fill,160px)); align-items:start; gap:10px; padding:10px 11px 14px}
+.msg-watch-grid .sig-card{width:auto; min-width:0; max-width:none}
+[data-theme="light"] .msg-watch-head{background:rgba(255,255,255,.66)}
+
+/* 展开信号按行排列：名称 / 物理数据 / 16进制原始数据 / 转换等式 */
+.sig-expand{display:flex; flex-direction:column; gap:6px}
+.sig-exp-item{
+  display:flex; align-items:center; gap:10px;
+  width:100%; min-height:30px; padding:5px 10px;
+}
+.sig-exp-name{flex:0 0 150px; min-width:0}
+.sig-exp-val{
+  flex:0 0 120px; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.sig-exp-unit-inline{color:var(--fg3); font-size:10px; margin-left:3px}
+.sig-exp-hex{
+  flex:none; color:var(--accent); background:var(--badge-bg);
+  border:1px solid var(--border2); border-radius:999px;
+  padding:1px 8px; font-family:var(--mono); font-size:11px;
+}
+.sig-exp-eq{
+  flex:1; min-width:0; color:var(--fg3);
+  font-family:var(--mono); font-size:11px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+@media(max-width:900px){
+  .sig-exp-item{flex-wrap:wrap; row-gap:4px}
+  .sig-exp-name{flex:1 1 120px}
+  .sig-exp-val{flex:1 1 110px}
+  .sig-exp-eq{flex:1 1 100%}
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo"><span class="mark" aria-hidden="true">DBC</span>DBC 信号解析工具 <span class="sub">CAN / CAN FD · ASC · BLF · TRC</span></div>
+    <div class="tabs" role="tablist" aria-label="页面切换">
+      <span class="knob" aria-hidden="true"></span>
+      <div class="tab active" data-tab="table" role="tab" aria-selected="true">按帧解码</div>
+      <div class="tab" data-tab="play" role="tab" aria-selected="false">回放报文</div>
+      <div class="tab" data-tab="chart" role="tab" aria-selected="false">时序曲线</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn sm" id="demoBtn" title="加载内置 Demo：demo.dbc + demo.blf">Demo</button>
+      <button class="btn sm" id="helpBtn" title="查看工具使用帮助">帮助</button>
+      <div class="theme" id="theme" role="group" aria-label="主题切换">
+        <span class="knob" aria-hidden="true"></span>
+        <button type="button" data-mode="system" aria-pressed="false" title="跟随系统">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="3.5" width="19" height="13" rx="2"/><path d="M8.5 20.5h7M12 16.5v4"/></svg><span>系统</span>
+        </button>
+        <button type="button" data-mode="light" aria-pressed="false" title="明亮">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.4M12 19.4v2.4M2.2 12h2.4M19.4 12h2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7"/></svg><span>明亮</span>
+        </button>
+        <button type="button" data-mode="dark" aria-pressed="true" title="暗黑">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.4A8.6 8.6 0 1 1 9.6 3.5a6.9 6.9 0 0 0 10.9 10.9z"/></svg><span>暗黑</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- 侧栏 -->
+    <aside class="sidebar">
+      <div class="sec">
+        <h3>数据加载</h3>
+        <div class="upload-row">
+          <label class="file-label" id="dbcDrop">
+            <span class="file-ok" id="dbcOk" title="已解析成功"></span>
+            <div class="ft">DBC 数据库（点击选择或拖入）</div>
+            <div class="fn" id="dbcName">auto_generated.dbc</div>
+            <input type="file" id="dbcInput" accept=".dbc">
+          </label>
+          <label class="file-label" id="logDrop">
+            <span class="file-ok" id="logOk" title="已解析成功"></span>
+            <div class="ft">总线日志 ASC / BLF / TRC（点击选择或拖入）</div>
+            <div class="fn" id="logName">选择 .asc/.blf/.trc 文件…</div>
+            <input type="file" id="logInput" accept=".asc,.blf,.trc">
+          </label>
+          <button class="btn primary" id="loadBtn">解析并加载</button>
+        </div>
+      </div>
+      <div class="sec" style="padding-bottom:8px">
+        <input type="text" class="tree-search" id="treeSearch" placeholder="搜索报文名 / ID / 信号名…" style="margin-bottom:0">
+      </div>
+      <div class="tree-wrap" id="tree"></div>
+      <div class="sidebar-actions" role="group" aria-label="DBC 操作">
+        <button class="btn sm" id="exportDbcBtn" title="导出当前会话的 DBC（含自定义/编辑后的信号）">导出 DBC</button>
+        <button class="btn sm" id="addSignalBtn" title="创建 DBC 中不存在的信号">＋ 创建信号</button>
+      </div>
+    </aside>
+    <div class="sidebar-resizer" id="sidebarResizer" title="拖动调整宽度，双击恢复默认"></div>
+
+    <!-- 主区 -->
+    <div class="content">
+
+      <!-- 逐帧表 -->
+      <div class="tab-pane active" id="pane-table">
+        <div class="toolbar">
+          <label>报文</label>
+          <select id="msgFilter" style="width:230px"><option value="">全部报文</option></select>
+          <input type="text" id="tableSearch" placeholder="搜索 ID / 数据 / 信号名或值…" style="width:260px">
+          <div class="grow"></div>
+          <button class="btn sm" id="toggleExpand">折叠全部信号</button>
+          <button class="btn sm" id="exportBtn">导出 CSV</button>
+        </div>
+        <div class="table-wrap"><table id="frameTable"><thead></thead><tbody></tbody></table></div>
+        <div class="table-float-bar">
+          <div class="ov-strip" id="overview" style="display:none"></div>
+          <div class="table-pager" role="group" aria-label="逐帧表分页">
+            <button class="btn sm" id="firstPage" title="回到第一页" disabled>回到首页</button>
+            <button class="btn sm" id="prevPage" title="上一页" disabled>上一页</button>
+            <button class="btn sm" id="nextPage" title="下一页" disabled>下一页</button>
+            <button class="btn sm" id="lastPage" title="去到最后一页" disabled>去到尾页</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 回放 -->
+      <div class="tab-pane" id="pane-play">
+        <div class="play-layout">
+          <div class="play-left">
+            <div class="play-controls">
+              <button class="icon-btn" id="stopBtn" title="停止并回到起点">■</button>
+              <button class="icon-btn play" id="playBtn" title="播放/暂停">▶</button>
+              <div class="timeline">
+                <span class="seek-time" id="curTime">0.000 s</span>
+                <input type="range" id="seek" min="0" max="1000" value="0">
+              </div>
+              <select class="speed-sel" id="speed">
+                <option value="0.05">0.05x</option><option value="0.1">0.1x</option>
+                <option value="0.2">0.2x</option><option value="0.25">0.25x</option>
+                <option value="0.5" selected>0.5x</option><option value="0.75">0.75x</option>
+                <option value="1">1x</option><option value="1.5">1.5x</option>
+                <option value="2">2x</option><option value="3">3x</option>
+                <option value="4">4x</option><option value="8">8x</option>
+                <option value="16">16x</option>
+              </select>
+              <select class="cols-sel" id="colCount" title="设置显示列数（独立信号与报文内信号同步）">
+                <option value="auto" selected>自动列数</option>
+                <option value="2">2 列</option>
+                <option value="3">3 列</option>
+                <option value="4">4 列</option>
+                <option value="5">5 列</option>
+                <option value="6">6 列</option>
+                <option value="8">8 列</option>
+                <option value="10">10 列</option>
+              </select>
+            </div>
+            <div class="live-frame" id="liveFrame">
+              <div class="watch-bar" id="watchBar">
+                <span class="watch-empty">把信号或整帧报文从左侧拖到此处固定显示，可同时存在、横向排列；右上角 × 可移除</span>
+              </div>
+              <div class="live-grid" id="liveGrid"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 曲线 -->
+      <div class="tab-pane" id="pane-chart">
+        <div class="toolbar chart-toolbar">
+          <div class="grow"></div>
+          <div class="seg" id="axisSeg">
+            <span class="knob" aria-hidden="true"></span>
+            <button class="seg-btn active" data-mode="independent">独立纵轴</button>
+            <button class="seg-btn" data-mode="merged">合并显示</button>
+          </div>
+          <label class="toggle-pill" id="normLabel" title="仅合并模式可用" style="opacity:.5"><input type="checkbox" id="normalize" disabled><span class="tg-track" aria-hidden="true"></span><span>归一化</span></label>
+          <button class="btn sm" id="clearSeries">清空曲线</button>
+          <span class="cursor-cnt" id="cursorCnt"></span>
+          <button class="btn sm" id="clearCursors" title="清除全部时间卡尺">清除卡尺</button>
+        </div>
+        <div class="chart-box" id="chartBox">
+          <canvas id="chartCanvas"></canvas>
+          <div class="tip" id="tip"></div>
+          <div class="cursor-info" id="cursorInfo" style="display:none"></div>
+          <div class="chart-empty" id="chartEmpty"><div style="font-size:34px;opacity:.4">📈</div><div>拖拽左侧信号到此处绘制曲线</div><div class="hint">独立纵轴：每信号一条刻度带 · 合并显示：共享纵轴对比</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-mask" id="sigModal">
+  <div class="modal">
+    <h3 id="sigModalTitle">创建信号（加入当前会话，参与解码 / 曲线 / 回放 / 导出）</h3>
+    <div class="mb">
+      <div class="form-grid">
+        <div class="f">
+          <label>目标报文</label>
+          <select id="csMsg"></select>
+        </div>
+        <div class="f">
+          <label>信号名 *</label>
+          <input type="text" id="csName" placeholder="例如 VirtualSpeed">
+        </div>
+        <div class="f" id="csMsgNameRow" style="display:none">
+          <label>新建报文名</label>
+          <input type="text" id="csMsgName" placeholder="例如 MyMessage">
+        </div>
+        <div class="f" id="csCanIdRow" style="display:none">
+          <label>CAN ID（十六进制）*</label>
+          <input type="text" id="csCanId" placeholder="0x700">
+        </div>
+        <div class="f" id="csDlcRow" style="display:none">
+          <label>DLC（字节）</label>
+          <input type="text" id="csDlc" value="8">
+        </div>
+        <div class="f" id="csExtRow" style="display:none">
+          <label>报文类型</label>
+          <label class="chk"><input type="checkbox" id="csExt"> 扩展帧（29 位 ID）</label>
+        </div>
+        <div class="f"><label>起始位 *（DBC 位编号）</label><input type="text" id="csStart" value="0"></div>
+        <div class="f"><label>长度 *（bit）</label><input type="text" id="csLength" value="16"></div>
+        <div class="f">
+          <label>字节序</label>
+          <select id="csEndian">
+            <option value="little_endian">Intel / Little Endian</option>
+            <option value="big_endian">Motorola / Big Endian</option>
+          </select>
+        </div>
+        <div class="f">
+          <label>符号类型</label>
+          <label class="chk"><input type="checkbox" id="csSigned"> 有符号（signed）</label>
+        </div>
+        <div class="f"><label>Factor（缩放系数）</label><input type="text" id="csScale" value="1"></div>
+        <div class="f"><label>Offset（偏移量）</label><input type="text" id="csOffset" value="0"></div>
+        <div class="f"><label>单位</label><input type="text" id="csUnit" placeholder="例如 km/h"></div>
+        <div class="f"><label>Comment（DBC 注释）</label><input type="text" id="csComment" placeholder="例如 自定义车速"></div>
+        <div class="f"><label>最小值（可选）</label><input type="text" id="csMin"></div>
+        <div class="f"><label>最大值（可选）</label><input type="text" id="csMax"></div>
+        <div class="f wide"><label>枚举值（可选，格式：0=停车;1=前进）</label><input type="text" id="csChoices" placeholder="0=驻车;1=倒车;2=空挡;3=前进"></div>
+        <div class="f wide"><div class="hint-sm">物理值 = 原始值 × Factor + Offset；起始位按 DBC 定义：Intel 为最低位，Motorola 为最高位。</div></div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn danger" id="sigDelete" style="display:none;margin-right:auto">删除信号</button>
+      <button class="btn" id="sigCancel">取消</button>
+      <button class="btn primary" id="sigCreate">创建信号</button>
+    </div>
+  </div>
+</div>
+<div class="modal-mask" id="confirmModal">
+  <div class="modal confirm-modal">
+    <h3 id="confirmTitle">加载 Demo 数据</h3>
+    <div class="mb" id="confirmMsg"></div>
+    <div class="foot">
+      <button class="btn" id="confirmCancel">取消</button>
+      <button class="btn primary" id="confirmOk">继续加载</button>
+    </div>
+  </div>
+</div>
+<div class="modal-mask" id="helpModal">
+  <div class="modal help-modal">
+    <h3>DBC 信号解析工具 · 使用帮助</h3>
+    <div class="mb help-body">
+      <div class="note">本工具的所有解析都在浏览器本地完成，文件不会上传服务器。加载新数据会替换当前会话中的自定义信号、曲线、时间卡尺与回放状态，请先导出需要保留的 DBC。</div>
+
+      <h4>1. 加载数据</h4>
+      <ul>
+        <li>左侧「数据加载」可选择或拖入 DBC 数据库（<code>.dbc</code>，可省略）和总线日志（<code>.asc</code> / <code>.blf</code> / <code>.trc</code>），然后点击「解析并加载」。</li>
+        <li>点击顶部「Demo」按钮可一键加载内置的 <code>demo.dbc</code> + <code>demo.blf</code>，包含 7 个报文、80 个信号、18,096 帧、100 秒数据，覆盖标准帧、扩展帧、CAN FD、大小端、有符号、缩放/偏移、枚举、MUX 等场景；其中 <code>Fd64Array</code> 为 64 字节 CAN FD 周期报文（100ms 周期），带 60 个信号。</li>
+        <li>点击 Demo 前会弹出确认框，因为当前会话中的自定义信号和图表状态会丢失。</li>
+      </ul>
+
+      <h4>2. 按帧解码</h4>
+      <ul>
+        <li>底部胶囊左侧显示总帧数、报文/信号数、CAN FD 帧数、已解码数、未定义 ID 与时长；右侧是「回到首页 / 上一页 / 下一页 / 去到尾页」按钮。</li>
+        <li>顶部工具栏可按报文过滤、按 ID / 数据 / 信号名或值搜索；「展开全部信号」可展开每帧的解码值，「折叠全部信号」可收起。</li>
+        <li>每个帧数据行采用胶囊外观；点击某一帧可展开/折叠信号明细，信号按「信号名称 / 物理数据 / 16进制原始数据 / 转换关系等式」顺序排列；「导出 CSV」会把当前筛选结果导出。</li>
+      </ul>
+
+      <h4>3. 左侧信号树</h4>
+      <ul>
+        <li>搜索框支持按报文名、ID 或信号名过滤。</li>
+        <li>勾选信号可把它加入曲线；把信号从左侧拖到曲线区或回放区的固定显示区，也能添加。信号前面的颜色块可点击切换该信号的曲线与卡片颜色，色块扩大了点击热区，也可用 Tab 聚焦后按 Enter/空格切换。</li>
+        <li>侧栏底部的「导出 DBC」会保存当前会话（含新建/编辑信号）；「＋ 创建信号」可在当前会话中新增信号。</li>
+      </ul>
+
+      <h4>4. 回放报文</h4>
+      <ul>
+        <li>「停止」暂停并回到 0 秒；「播放/暂停」控制回放；速率下拉提供 0.05x ~ 16x 共 13 档。</li>
+        <li>单个信号与整帧报文可同时拖入回放区固定显示：整帧报文块独占一行，独立信号卡片在其后横向排列。报文块按「时间 / ID / 报文名 / 原始数据」报文头 + 该帧全部信号卡片展示，块内信号卡片与独立信号卡片样式、功能相同，但不带删除 ×。悬浮控制条上的「列数」下拉可选择自动列数或固定 2~10 列，两类信号卡片同步按列对齐。拖动时间轴可定位到任意时刻；独立信号卡片与报文块右上角的 × 可分别移除。</li>
+        <li>固定显示的信号卡片（含报文块内的信号卡片）右下角迷你图表均可点击切换「折线图 / 仪表盘 / 横向柱状图」三种外观：折线图只绘制到当前播放进度，后续线段随回放逐步显示；仪表盘与柱状图按当前值在最小~最大区间的位置展示。</li>
+      </ul>
+
+      <h4>5. 时序曲线</h4>
+      <ul>
+        <li>勾选或拖拽左侧信号即可添加曲线；每条曲线会显示单位、最小值、最大值和平均值。</li>
+        <li>「独立纵轴」让每个信号使用独立分带；「合并显示」把多个信号叠在同一坐标系；合并模式下可勾选「归一化」统一量纲。</li>
+        <li>滚轮缩放横轴，拖拽图形区平移；「清空曲线」移除全部曲线，「清除卡尺」移除时间标记。曲线上最多可放置两个时间卡尺。</li>
+      </ul>
+
+      <h4>6. 主题与数据说明</h4>
+      <ul>
+        <li>右上角主题按钮支持「系统 / 明亮 / 暗黑」，选择会本地保存，下次打开仍然生效。</li>
+        <li>未定义 ID 的帧仍会显示原始数据，但不会解出信号；CAN FD 帧会标注 FD/BRS/ESI。</li>
+        <li>自定义信号只存在于当前浏览器会话中，刷新页面前如需保留请点击「导出 DBC」。</li>
+      </ul>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="helpClose">知道了</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="./demo-data.js"></script>
+<script src="./parser.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const COLORS_DARK = ["#58a6ff","#3fb950","#d29922","#bc8cff","#39c5cf","#f85149","#ff7b72","#7ee787","#79c0ff","#ffa657"];
+const COLORS_LIGHT = ["#0550ae","#1a7f37","#9a6700","#8250df","#1b7c83","#cf222e","#a40e26","#196c2e","#0550ae","#bc4c00"];
+function activeColors(){return document.documentElement.dataset.theme==="light"?COLORS_LIGHT:COLORS_DARK;}
+
+const S = {
+  sid:null, meta:null, curMsg:"", search:"", page:0, pageCount:1, pageSize:200, tableCollapsed:true,
+  series:[], // {key,msg,sig,color,points,unit,min,max,avg,visible}
+  sigColors:{}, // 信号自定义颜色覆盖 {key:color}
+  axisMode:"independent", // independent=每信号独立纵轴(分带) / merged=合并共享纵轴
+  cursors:[], // 时间卡尺，元素为时间(s)
+  editCtx:null, // 当前编辑的信号 {msg,oldName}
+  chartReady:false, // canvas 已初始化（主题切换时避免提前重绘）
+  view:{x0:0,x1:1,y0:0,y1:1}, hasView:false,
+  play:{t:0,playing:false,speed:.5,last:0,lastReq:0,curFrame:null,curSigVals:{},watch:[],msgWatch:[],watchVals:{},watchSeries:{},chartMode:{},suppressDefault:false}
+};
+
+function toast(msg,err){const t=$("toast");t.textContent=msg;t.className="toast"+(err?" err":"");t.style.display="block";clearTimeout(t._t);t._t=setTimeout(()=>t.style.display="none",2600);}
+
+// ---------- 主题：系统 / 明亮 / 暗黑（与首页同款三档胶囊）----------
+const THEME_NAMES={system:"系统",light:"明亮",dark:"暗黑"};
+const THEME_ORDER=["system","light","dark"];
+function currentTheme(){let m="dark";try{m=localStorage.getItem("dbcToolTheme")||"dark";}catch(e){}return THEME_ORDER.includes(m)?m:"dark";}
+function cssVar(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
+function syncThemeControl(mode){
+  const group=$("theme"); if(!group) return;
+  const i=THEME_ORDER.indexOf(mode);
+  group.style.setProperty("--i", i<0?2:i);
+  group.querySelectorAll("button[data-mode]").forEach(b=>{
+    b.setAttribute("aria-pressed", b.dataset.mode===mode?"true":"false");
+  });
+}
+function applyTheme(mode){
+  if(!THEME_ORDER.includes(mode)) mode="dark";
+  const prefersLight=window.matchMedia("(prefers-color-scheme: light)").matches;
+  const light=mode==="light"||(mode==="system"&&prefersLight);
+  document.documentElement.dataset.theme=light?"light":"dark";
+  try{localStorage.setItem("dbcToolTheme",mode);}catch(e){}
+  syncThemeControl(mode);
+  S.series.forEach(x=>x.color=colorFor(x.key));
+  if(S.chartReady)drawChart();
+}
+if($("theme")){
+  $("theme").addEventListener("click", e=>{
+    const b=e.target.closest?e.target.closest("button[data-mode]"):null;
+    if(b) applyTheme(b.dataset.mode);
+  });
+}
+const _themeMql=window.matchMedia("(prefers-color-scheme: light)");
+(_themeMql.addEventListener?_themeMql.addEventListener.bind(_themeMql,"change"):_themeMql.addListener.bind(_themeMql))(e=>{
+  let mode="dark";try{mode=localStorage.getItem("dbcToolTheme")||"dark";}catch(err){}
+  if(mode==="system")applyTheme("system");
+});
+let _initTheme="dark";try{_initTheme=localStorage.getItem("dbcToolTheme")||"dark";}catch(e){}
+applyTheme(_initTheme);
+
+// ---------- 左侧栏宽度可拖拽 ----------
+(function(){
+  const rz=$("sidebarResizer"),side=document.querySelector(".sidebar");
+  const clamp=w=>Math.max(200,Math.min(620,w));
+  let startX=0,startW=0,dragging=false;
+  let w=290;try{w=+localStorage.getItem("sidebarWidth")||290;}catch(e){}
+  side.style.width=clamp(w)+"px";
+  rz.onmousedown=e=>{
+    if(e.button!==0)return;
+    e.preventDefault();dragging=true;startX=e.clientX;startW=side.getBoundingClientRect().width;
+    rz.classList.add("dragging");document.body.style.cursor="col-resize";document.body.style.userSelect="none";
+  };
+  rz.ondblclick=()=>{
+    side.style.width="290px";
+    try{localStorage.setItem("sidebarWidth","290");}catch(e){}
+    if(S.chartReady)drawChart();
+  };
+  window.addEventListener("mousemove",e=>{
+    if(!dragging)return;
+    side.style.width=clamp(startW+e.clientX-startX)+"px";
+  });
+  window.addEventListener("mouseup",()=>{
+    if(!dragging)return;
+    dragging=false;rz.classList.remove("dragging");
+    document.body.style.cursor="";document.body.style.userSelect="";
+    try{localStorage.setItem("sidebarWidth",String(Math.round(side.getBoundingClientRect().width)));}catch(e){}
+    if(S.chartReady)drawChart();
+  });
+})();
+
+// ---------- 加载 ----------
+$("dbcInput").onchange=e=>{const f=e.target.files[0];if(f){$("dbcName").textContent=f.name;$("dbcOk").classList.remove("on");}};
+$("logInput").onchange=e=>{const f=e.target.files[0];if(f){$("logName").textContent=f.name;$("logOk").classList.remove("on");}};
+// 文件框支持直接拖入：把拖入的 File 写入对应 input.files 并触发 change
+function enableFileDrop(dropId,inputId,nameId,accepted){
+  const zone=$(dropId),input=$(inputId);
+  zone.addEventListener("dragover",e=>{e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect="copy";zone.classList.add("drag-over");});
+  zone.addEventListener("dragleave",e=>{if(!zone.contains(e.relatedTarget))zone.classList.remove("drag-over");});
+  zone.addEventListener("drop",e=>{
+    e.preventDefault();e.stopPropagation();zone.classList.remove("drag-over");
+    const f=e.dataTransfer.files[0];if(!f)return;
+    if(accepted&&!accepted.some(x=>f.name.toLowerCase().endsWith(x))){
+      toast("文件类型不符，需 "+accepted.join(" / "),true);return;
+    }
+    const dt=new DataTransfer();dt.items.add(f);
+    input.files=dt.files;
+    input.dispatchEvent(new Event("change",{bubbles:true}));
+    $(nameId).textContent=f.name;
+  });
+}
+enableFileDrop("dbcDrop","dbcInput","dbcName",[".dbc"]);
+enableFileDrop("logDrop","logInput","logName",[".asc",".blf",".trc"]);
+async function loadFiles(dbc, log, btn){
+  if(!log){toast("请选择日志文件（DBC 可不选）",true);return false;}
+  const oldText=btn?btn.textContent:"";
+  if(btn){btn.disabled=true;btn.textContent="解析中…";}
+  $("dbcOk").classList.remove("on");$("logOk").classList.remove("on");
+  try{
+    const j=await DbcLocal.load(dbc,log);
+    if(!j.ok)throw new Error(j.error||"加载失败");
+    S.sid=j.sid;S.meta=j.meta;S.curMsg="";S.search="";S.page=0;S.pageCount=1;S.tableCollapsed=true;
+    $("dbcName").textContent=j.meta.dbc||"auto_generated.dbc";
+    $("logName").textContent=j.meta.log||log.name;
+    S.series=[];S.sigColors={};S.hasView=false;S.cursors=[];renderCursorInfo();S.play.t=0;S.play.playing=false;
+    S.play.watch=[];S.play.msgWatch=[];S.play.watchVals={};S.play.watchSeries={};S.play.chartMode={};S.play.suppressDefault=false;S.play.watchFrames={};
+    $("playBtn").textContent="▶";$("speed").value="0.5";S.play.speed=.5;
+    $("dbcOk").classList.add("on");$("logOk").classList.add("on");
+    buildUI();renderTable();renderWatchBar();
+    toast("加载完成："+j.meta.stats.total.toLocaleString()+" 帧"+(j.meta.warnings.length?"（有警告）":""));
+    return true;
+  }catch(e){toast("解析失败："+e.message,true);return false;}
+  finally{if(btn){btn.disabled=false;btn.textContent=oldText;}}
+}
+$("loadBtn").onclick=()=>loadFiles($("dbcInput").files[0], $("logInput").files[0], $("loadBtn"));
+
+// ---------- 确认框 / 帮助弹窗 / Demo 加载 ----------
+let confirmAction=null;
+function openConfirm(title,message,onOk){
+  $("confirmTitle").textContent=title;
+  $("confirmMsg").textContent=message;
+  confirmAction=onOk;
+  $("confirmModal").style.display="flex";
+}
+function closeConfirm(){$("confirmModal").style.display="none";confirmAction=null;}
+$("confirmCancel").onclick=closeConfirm;
+$("confirmOk").onclick=()=>{const fn=confirmAction;closeConfirm();if(fn)fn();};
+$("confirmModal").onclick=e=>{if(e.target===$("confirmModal"))closeConfirm();};
+
+function openHelp(){$("helpModal").style.display="flex";}
+function closeHelp(){$("helpModal").style.display="none";}
+$("helpBtn").onclick=openHelp;
+$("helpClose").onclick=closeHelp;
+$("helpModal").onclick=e=>{if(e.target===$("helpModal"))closeHelp();};
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Escape")return;
+  if($("helpModal").style.display==="flex")closeHelp();
+  if($("confirmModal").style.display==="flex")closeConfirm();
+});
+
+function base64ToFile(b64,name){
+  const bin=atob(b64);
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+  return new File([bytes],name);
+}
+async function fetchDemoFile(path,name){
+  const lower=name.toLowerCase();
+  const key=lower.endsWith(".dbc")?"DEMO_DBC_B64":lower.endsWith(".blf")?"DEMO_BLF_B64":"";
+  const b64=key?window[key]:"";
+  if(b64)return base64ToFile(b64,name);
+  if(location.protocol==="file:")throw new Error("内置 Demo 数据未加载，请确认 demo-data.js 与页面在同一目录");
+  const r=await fetch(path,{cache:"no-store"});
+  if(!r.ok)throw new Error(name+" 读取失败（HTTP "+r.status+"）");
+  return new File([await r.arrayBuffer()],name);
+}
+async function loadDemo(btn){
+  try{
+    const [dbc,log]=await Promise.all([
+      fetchDemoFile("./testdata/demo.dbc","demo.dbc"),
+      fetchDemoFile("./testdata/demo.blf","demo.blf")
+    ]);
+    const ok=await loadFiles(dbc,log,btn);
+    if(ok)activateTab("table");
+  }catch(e){toast("Demo 加载失败："+e.message,true);}
+}
+$("demoBtn").onclick=()=>openConfirm(
+  "加载 Demo 数据",
+  "Demo 会替换当前已加载的数据，并清空自定义信号、曲线、时间卡尺与回放状态。建议先导出需要保留的 DBC。确定继续吗？",
+  ()=>loadDemo($("demoBtn"))
+);
+
+function buildUI(){
+  // 全部报文视图下，用所有信号的并集作为表格列（去重，最多 20 列）
+  const all=[];for(const m of S.meta.messages)for(const sg of m.signals)if(!all.includes(sg.name))all.push(sg.name);
+  S.allSignalCols=all.slice(0,20);
+  renderStats();renderTree();fillMsgFilter();resetTableHead();
+  positionSeekTime();
+}
+
+function renderStats(){
+  if(!S.meta)return;
+  $("overview").style.display="flex";
+  const s=S.meta.stats;
+  const items=[
+    ["总帧数",s.total.toLocaleString(),"b"],
+    ["报文 / 信号",s.msg_count+" / "+s.sig_count,""],
+    ["CAN FD 帧",s.fd.toLocaleString(),s.fd?"o":""],
+    ["已解码",s.defined.toLocaleString(),"g"],
+    ["未定义 ID",s.undefined.toLocaleString(),s.undefined?"":"g"],
+    ["时长",s.duration.toFixed(2)+" s",""],
+  ];
+  $("overview").innerHTML=items.map(([k,v,c])=>`<div class="ov-row"><span class="ov-k">${k}</span><span class="ov-v ${c}">${v}</span></div>`).join("");
+}
+
+function fillMsgFilter(){
+  const sel=$("msgFilter");
+  sel.innerHTML='<option value="">全部报文</option>'+S.meta.messages.map(m=>
+    `<option value="${esc(m.name)}">${esc(m.name)} (${m.id_hex})</option>`).join("");
+}
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function rawHexText(raw,length){
+  try{
+    const bits=Number(length)>0&&Number(length)<=64?Number(length):32;
+    const u=BigInt.asUintN(bits,BigInt(Math.round(raw)));
+    return "0x"+u.toString(16).toUpperCase().padStart(Math.ceil(bits/4),"0");
+  }catch(e){return "0x"+String(raw);}
+}
+function eqText(raw,scale,offset,value,unit){
+  const f=Number(scale)||1, o=Number(offset)||0;
+  const sign=o<0?"−":"+";
+  return `${raw} × ${f} ${sign} ${Math.abs(o)} = ${fmt(value)}${unit?" "+unit:""}`;
+}
+
+// ---------- 报文/信号树 ----------
+function renderTree(){
+  const q=$("treeSearch").value.trim().toLowerCase();
+  // 报文名/ID 命中时显示全部信号；仅信号名命中时只显示匹配的信号并自动展开该报文
+  const msgHit=m=>!q||m.name.toLowerCase().includes(q)||m.id_hex.toLowerCase().includes(q);
+  const sigHit=m=>m.signals.some(sg=>sg.name.toLowerCase().includes(q));
+  const msgs=S.meta.messages.filter(m=>msgHit(m)||sigHit(m));
+  $("tree").innerHTML=msgs.map(m=>{
+    const key=m.name;
+    const allSig=msgHit(m);
+    const sigs=allSig?m.signals:m.signals.filter(sg=>sg.name.toLowerCase().includes(q));
+    return `<div class="msg-item${allSig?"":" open"}" data-msg="${esc(key)}">
+      <div class="msg-head" data-head="${esc(key)}" draggable="true" title="点击筛选报文；拖拽到回放区=固定显示整帧报文">
+        <span class="arrow">▶</span>
+        <span class="name" title="${esc(m.comment||m.name)}">${esc(m.name)}</span>
+        ${m.dlc>8?'<span class="fd">FD</span>':''}
+        <span class="id">${m.id_hex}</span>
+      </div>
+      <div class="sig-list">${sigs.map(sg=>{
+        const sk=key+"|"+sg.name;
+        const inChart=S.series.some(x=>x.key===sk);
+        return `<label class="sig-item" title="勾选=画曲线；拖拽到回放区=固定显示。${esc(sg.comment||sg.name)}" draggable="true" data-dragkey="${esc(sk)}">
+          <input type="checkbox" data-sig="${esc(sk)}" ${inChart?"checked":""}>
+          <span class="chip-color" data-color-key="${esc(sk)}" role="button" tabindex="0" aria-label="切换信号颜色" title="点击切换颜色" style="background:${colorFor(sk)};color:${colorFor(sk)}"></span>
+          <span class="sname">${esc(sg.name)}</span>
+          ${sg.is_mux?'<span class="mux">M</span>':''}
+          ${sg.mux?'<span class="mux">m'+sg.mux.join("/")+'</span>':''}
+          ${sg.custom?'<span class="custom">自定义</span>':''}
+          <span class="unit">${esc(sg.unit)}</span>
+          <button type="button" class="sig-edit" data-edit="${esc(sk)}" title="编辑信号参数">✎</button>
+        </label>`;}).join("")}</div>
+    </div>`;}).join("");
+  $("tree").querySelectorAll(".msg-head").forEach(h=>h.onclick=()=>{
+    const item=h.parentElement;item.classList.toggle("open");
+    S.curMsg=h.dataset.head;$("msgFilter").value=S.curMsg;S.page=0;renderTable();
+    $("tree").querySelectorAll(".msg-head").forEach(x=>x.classList.toggle("active",x===h));
+  });
+  $("tree").querySelectorAll("input[data-sig]").forEach(cb=>cb.onchange=()=>toggleSeries(cb.dataset.sig,cb.checked));
+  $("tree").querySelectorAll(".chip-color[data-color-key]").forEach(chip=>{
+    const activate=e=>{e.preventDefault();e.stopPropagation();cycleSignalColor(chip.dataset.colorKey,chip);};
+    chip.onclick=activate;
+    chip.onkeydown=e=>{if(e.key==="Enter"||e.key===" "||e.key==="Spacebar")activate(e);};
+    chip.onmousedown=e=>e.stopPropagation();
+    chip.onpointerdown=e=>e.stopPropagation();
+    chip.ondragstart=e=>{e.preventDefault();e.stopPropagation();};
+  });
+  $("tree").querySelectorAll(".sig-edit").forEach(btn=>{
+    btn.onclick=e=>{e.preventDefault();e.stopPropagation();openEditSignal(btn.dataset.edit);};
+    btn.onmousedown=e=>e.stopPropagation();
+  });
+  $("tree").querySelectorAll(".sig-item[data-dragkey]").forEach(el=>{
+    el.addEventListener("dragstart",e=>{
+      e.dataTransfer.setData("text/plain",el.dataset.dragkey);
+      e.dataTransfer.effectAllowed="copy";
+      el.classList.add("drag-src");
+    });
+    el.addEventListener("dragend",()=>el.classList.remove("drag-src"));
+  });
+  $("tree").querySelectorAll(".msg-head[data-head]").forEach(el=>{
+    el.addEventListener("dragstart",e=>{
+      e.dataTransfer.setData("text/plain","msg:"+el.dataset.head);
+      e.dataTransfer.effectAllowed="copy";
+      el.classList.add("drag-src");
+    });
+    el.addEventListener("dragend",()=>el.classList.remove("drag-src"));
+  });
+  // 恢复已展开状态
+  S.series.forEach(x=>{const it=$("tree").querySelector(`.msg-item[data-msg="${CSS.escape(x.msg)}"]`);if(it)it.classList.add("open");});
+}
+$("treeSearch").oninput=renderTree;
+
+// ---------- 创建 / 编辑信号 ----------
+function fillMsgOptions(){
+  $("csMsg").innerHTML='<option value="">选择已有报文…</option>'+
+    S.meta.messages.map(m=>`<option value="${esc(m.name)}">${esc(m.name)} (${m.id_hex})</option>`).join("")+
+    '<option value="__custom__">＋ 新建报文（自定义 CAN ID）</option>';
+}
+function toggleCustomMsg(){
+  const custom=!$("csMsg").disabled&&$("csMsg").value==="__custom__";
+  ["csMsgNameRow","csCanIdRow","csDlcRow","csExtRow"].forEach(id=>$(id).style.display=custom?"flex":"none");
+}
+function openCreateSignal(){
+  if(!S.sid){toast("请先加载数据",true);return;}
+  S.editCtx=null;
+  fillMsgOptions();
+  $("csMsg").disabled=false;
+  $("sigModalTitle").textContent="创建信号（加入当前会话，参与解码 / 曲线 / 回放 / 导出）";
+  $("sigCreate").textContent="创建信号";
+  $("sigDelete").style.display="none";
+  $("csName").value="";$("csCanId").value="";$("csMsgName").value="";
+  $("csDlc").value="8";$("csStart").value="0";$("csLength").value="16";
+  $("csScale").value="1";$("csOffset").value="0";$("csUnit").value="";
+  $("csComment").value="";$("csMin").value="";$("csMax").value="";$("csChoices").value="";
+  $("csEndian").value="little_endian";$("csSigned").checked=false;
+  toggleCustomMsg();
+  $("sigModal").style.display="flex";
+}
+function openEditSignal(key){
+  if(!S.sid){toast("请先加载数据",true);return;}
+  const parts=key.split("|"),msg=parts[0],oldName=parts[1];
+  const m=S.meta.messages.find(x=>x.name===msg);
+  const sg=m&&m.signals.find(x=>x.name===oldName);
+  if(!sg){toast("信号不存在",true);return;}
+  S.editCtx={msg,oldName};
+  fillMsgOptions();
+  $("csMsg").value=msg;$("csMsg").disabled=true;
+  $("sigModalTitle").textContent="编辑信号 · "+oldName;
+  $("sigCreate").textContent="保存修改";
+  $("sigDelete").style.display="inline-block";
+  $("csName").value=sg.name;
+  $("csStart").value=sg.start;$("csLength").value=sg.length;
+  $("csEndian").value=sg.byte_order||"little_endian";$("csSigned").checked=!!sg.is_signed;
+  $("csScale").value=sg.scale;$("csOffset").value=sg.offset;
+  $("csUnit").value=sg.unit||"";$("csComment").value=sg.comment||"";
+  $("csMin").value=sg.min===null||sg.min===undefined?"":sg.min;
+  $("csMax").value=sg.max===null||sg.max===undefined?"":sg.max;
+  $("csChoices").value=Object.entries(sg.choices||{}).map(([k,v])=>k+"="+v).join(";");
+  toggleCustomMsg();
+  $("sigModal").style.display="flex";
+}
+function renameSignalKey(oldKey,newKey){
+  if(oldKey===newKey)return;
+  if(S.sigColors&&Object.prototype.hasOwnProperty.call(S.sigColors,oldKey)){
+    S.sigColors[newKey]=S.sigColors[oldKey];delete S.sigColors[oldKey];
+  }
+  S.series.forEach(x=>{if(x.key===oldKey){x.key=newKey;x.sig=newKey.split("|")[1];}});
+  const i=S.play.watch.indexOf(oldKey);if(i>=0)S.play.watch[i]=newKey;
+  if(Object.prototype.hasOwnProperty.call(S.play.watchVals,oldKey)){
+    S.play.watchVals[newKey]=S.play.watchVals[oldKey];delete S.play.watchVals[oldKey];
+  }
+  if(S.play.watchSeries[oldKey]){
+    S.play.watchSeries[newKey]=S.play.watchSeries[oldKey];delete S.play.watchSeries[oldKey];
+  }
+  if(S.play.chartMode&&Object.prototype.hasOwnProperty.call(S.play.chartMode,oldKey)){
+    S.play.chartMode[newKey]=S.play.chartMode[oldKey];delete S.play.chartMode[oldKey];
+  }
+}
+$("addSignalBtn").onclick=openCreateSignal;
+$("csMsg").onchange=toggleCustomMsg;
+$("sigCancel").onclick=()=>$("sigModal").style.display="none";
+function removeSignalRefs(msg,name){
+  const key=msg+"|"+name;
+  S.series=S.series.filter(x=>x.key!==key);
+  S.play.watch=S.play.watch.filter(k=>k!==key);
+  delete S.play.watchVals[key];delete S.play.watchSeries[key];if(S.play.chartMode)delete S.play.chartMode[key];if(S.sigColors)delete S.sigColors[key];
+}
+$("sigDelete").onclick=async()=>{
+  if(!S.editCtx)return;
+  const {msg,oldName}=S.editCtx;
+  if(!confirm("确定删除信号「"+oldName+"」？仅影响当前会话。"))return;
+  const btn=$("sigDelete");btn.disabled=true;btn.textContent="删除中…";
+  try{
+    const j=DbcLocal.deleteSignal({msg_name:msg,sig_name:oldName});
+    if(!j.ok)throw new Error(j.error||"删除失败");
+    removeSignalRefs(msg,oldName);
+    S.meta.messages=j.messages;S.meta.stats=j.stats;
+    buildUI();renderTable();drawChart();
+    $("sigModal").style.display="none";
+    toast("已删除信号 "+oldName+"（"+j.removed+" 帧）");
+  }catch(e){toast(e.message,true);}
+  finally{btn.disabled=false;btn.textContent="删除信号";}
+};
+$("sigModal").onclick=e=>{if(e.target===$("sigModal"))$("sigModal").style.display="none";};
+$("sigCreate").onclick=async()=>{
+  const editing=!!S.editCtx;
+  const msgVal=$("csMsg").value;
+  if(!editing&&!msgVal){toast("请选择目标报文",true);return;}
+  const name=$("csName").value.trim();
+  if(!name){toast("请填写信号名",true);return;}
+  const payload={
+    sid:S.sid, name,
+    start:$("csStart").value.trim(), length:$("csLength").value.trim(),
+    byte_order:$("csEndian").value, is_signed:$("csSigned").checked,
+    scale:$("csScale").value.trim(), offset:$("csOffset").value.trim(),
+    unit:$("csUnit").value.trim(), comment:$("csComment").value.trim(),
+    min:$("csMin").value.trim(), max:$("csMax").value.trim(),
+    choices:$("csChoices").value.trim(),
+  };
+  let oldKey=null,newKey=null;
+  if(editing){
+    payload.msg_name=S.editCtx.msg;payload.old_name=S.editCtx.oldName;
+    oldKey=S.editCtx.msg+"|"+S.editCtx.oldName;
+    newKey=S.editCtx.msg+"|"+name;
+  }else if(msgVal==="__custom__"){
+    const canId=$("csCanId").value.trim();
+    if(!canId){toast("请填写 CAN ID",true);return;}
+    payload.custom_msg=true;payload.can_id=canId;
+    payload.msg_name=$("csMsgName").value.trim();
+    payload.dlc=$("csDlc").value.trim();
+    payload.extended=$("csExt").checked;
+  }else{
+    payload.msg_name=msgVal;
+  }
+  const btn=$("sigCreate"),oldBtn=btn.textContent;
+  btn.disabled=true;btn.textContent=editing?"保存中…":"创建中…";
+  try{
+    const j=editing?DbcLocal.editSignal(payload):DbcLocal.addSignal(payload);
+    if(!j.ok)throw new Error(j.error||"操作失败");
+    if(editing)renameSignalKey(oldKey,newKey);
+    S.meta.messages=j.messages;if(j.stats)S.meta.stats=j.stats;
+    buildUI();renderTable();drawChart();
+    $("sigModal").style.display="none";
+    toast((editing?"已更新信号 ":"已创建信号 ")+name+"（解码 "+j.decoded+" 帧）");
+  }catch(e){toast(e.message,true);}
+  finally{btn.disabled=false;btn.textContent=oldBtn;}
+};
+
+function colorFor(key){
+  if(S.sigColors&&Object.prototype.hasOwnProperty.call(S.sigColors,key))return S.sigColors[key];
+  const i=S.series.findIndex(x=>x.key===key);if(i>=0)return S.series[i].color;
+  let h=0;for(const c of key)h=(h*31+c.charCodeAt(0))|0;const cs=activeColors();return cs[Math.abs(h)%cs.length];
+}
+function cycleSignalColor(key,chip){
+  if(!S.sigColors)S.sigColors={};
+  const cs=activeColors(),cur=colorFor(key);
+  let i=cs.indexOf(cur);i=(i+1)%cs.length;
+  const color=cs[i];S.sigColors[key]=color;
+  const ser=S.series.find(x=>x.key===key);if(ser)ser.color=color;
+  if(chip){chip.style.background=color;chip.style.color=color;}
+  if(S.chartReady)drawChart();
+  if(S.play.curFrame)renderLive(S.play.curFrame);
+  toast("已切换信号颜色");
+}
+
+// 导出当前会话 DBC（含自定义/编辑后的信号）
+$("exportDbcBtn").onclick=()=>{
+  if(!S.sid){toast("请先加载数据",true);return;}
+  DbcLocal.exportDbc();
+  toast("已导出 DBC");
+};
+
+// ---------- Tab 切换 ----------
+const TAB_GROUP=document.querySelector(".tabs");
+const TAB_LIST=Array.from(document.querySelectorAll(".tab"));
+function syncTabControl(t){
+  const i=TAB_LIST.indexOf(t);
+  if(TAB_GROUP) TAB_GROUP.style.setProperty("--ti", i<0?0:i);
+  TAB_LIST.forEach(x=>{
+    const on=x===t;
+    x.classList.toggle("active",on);
+    x.setAttribute("aria-selected", on?"true":"false");
+  });
+}
+function activateTab(name){
+  const t=TAB_LIST.find(x=>x.dataset.tab===name);
+  if(t&&typeof t.onclick==="function")t.onclick();
+}
+TAB_LIST.forEach(t=>t.onclick=()=>{
+  syncTabControl(t);
+  document.querySelectorAll(".tab-pane").forEach(p=>p.classList.toggle("active",p.id==="pane-"+t.dataset.tab));
+  if(t.dataset.tab==="chart"){requestAnimationFrame(drawChart);}
+});
+syncTabControl(TAB_LIST.find(t=>t.classList.contains("active"))||TAB_LIST[0]);
+
+// ---------- 按帧解码 ----------
+const BASE_COLS=["#","时间 (s)","通道","ID","报文","DLC","数据"];
+function resetTableHead(){
+  $("frameTable").querySelector("thead").innerHTML="<tr>"+BASE_COLS.map((h,i)=>`<th class="${i===1?'num':''}">${h}</th>`).join("")+"</tr>";
+}
+async function renderTable(){
+  if(!S.sid)return;
+  resetTableHead();
+  const j=DbcLocal.queryFrames({offset:S.page*S.pageSize,limit:S.pageSize,msg:S.curMsg,q:S.search});
+  if(!j.ok){toast(j.error,true);return;}
+  const tb=$("frameTable").querySelector("tbody");
+  tb.innerHTML=j.frames.map(f=>{
+    // 父行：原始报文信息（点击切换信号展开）
+    const cells=[
+      `<span class="caret">▶</span>${f.i}`,
+      f.t.toFixed(6),
+      esc(f.ch),
+      `<span style="color:var(--accent)">${f.id_hex}</span>${f.fd?' <span class="fd-tag">FD</span>':''}`,
+      esc(f.msg||'<未定义>'),
+      f.dlc,
+      `<span style="color:var(--fg2)">${esc(f.data)}</span>`
+    ];
+    const parent="<tr class='frame-row"+(S.tableCollapsed?"":" open")+"' data-fi='"+f.i+"'>"+cells.map((c,i)=>`<td class="${i===1?'num':''}">${c}</td>`).join("")+"</tr>";
+    // 子行：该帧信号，以报文展开形式显示在父行下面
+    const names=Object.keys(f.sigs);
+    const sigHtml=names.length?names.map(n=>{
+      const pair=f.sigs[n], sg=findSig(f.msg,n);
+      const unit=sg?sg.unit:"";
+      const scale=sg?(sg.scale||1):1, offset=sg?(sg.offset||0):0;
+      const choice=(sg&&sg.choices&&pair[1]!==null&&sg.choices[String(pair[1])])?sg.choices[String(pair[1])]:"";
+      const hex=rawHexText(pair[1],sg?sg.length:32);
+      const eq=eqText(pair[1],scale,offset,pair[0],unit);
+      return `<div class="sig-exp-item" title="${esc(n)} · ${esc(eq)}${choice?' · '+esc(choice):''}">
+        <span class="sig-exp-name" title="${esc(n)}">${esc(n)}</span>
+        <span class="sig-exp-val">${fmt(pair[0])}${unit?' <span class="sig-exp-unit-inline">'+esc(unit)+'</span>':''}${choice?' <span style="color:var(--purple)">'+esc(choice)+'</span>':''}</span>
+        <span class="sig-exp-hex" title="16进制原始数据">${hex}</span>
+        <span class="sig-exp-eq" title="转换关系等式：原始值 × 系数 + 偏移 = 物理值">${esc(eq)}</span></div>`;
+    }).join(""):'<div class="sig-none">该帧无已定义信号（DBC 中未找到对应报文 / 信号）</div>';
+    const child=`<tr class="sig-row" data-fi="${f.i}"><td colspan="${BASE_COLS.length}"><div class="sig-expand">${sigHtml}</div></td></tr>`;
+    return parent+child;
+  }).join("")||'<tr><td colspan="'+BASE_COLS.length+'" style="text-align:center;color:var(--fg3);padding:30px">无匹配帧</td></tr>';
+  // 应用当前的折叠状态
+  if(S.tableCollapsed)tb.querySelectorAll(".sig-row").forEach(r=>r.classList.add("collapsed"));
+  updateToggleBtn();
+  const pageCount=Math.max(1,Math.ceil(j.total/S.pageSize));
+  S.pageCount=pageCount;
+  const atFirst=S.page<=0, atLast=S.page>=pageCount-1;
+  $("firstPage").disabled=atFirst;
+  $("prevPage").disabled=atFirst;
+  $("nextPage").disabled=atLast;
+  $("lastPage").disabled=atLast;
+}
+function updateToggleBtn(){$("toggleExpand").textContent=S.tableCollapsed?"展开全部信号":"折叠全部信号";}
+$("msgFilter").onchange=e=>{S.curMsg=e.target.value;S.page=0;renderTable();};
+$("tableSearch").oninput=e=>{S.search=e.target.value;S.page=0;clearTimeout(S._t);S._t=setTimeout(renderTable,250);};
+$("firstPage").onclick=()=>{if(S.page>0){S.page=0;renderTable();}};
+$("prevPage").onclick=()=>{if(S.page>0){S.page--;renderTable();}};
+$("nextPage").onclick=()=>{if(S.page<(S.pageCount||1)-1){S.page++;renderTable();}};
+$("lastPage").onclick=()=>{const last=Math.max(0,(S.pageCount||1)-1);if(S.page!==last){S.page=last;renderTable();}};
+$("exportBtn").onclick=()=>{if(!S.sid)return toast("请先加载数据",true);DbcLocal.exportCsv(S.curMsg);toast("已导出 CSV");};
+// 点击原始报文父行 -> 切换该帧信号子行的展开/折叠
+$("frameTable").querySelector("tbody").addEventListener("click",e=>{
+  const row=e.target.closest(".frame-row");if(!row)return;
+  const fi=row.dataset.fi;
+  const sub=$("frameTable").querySelector(`.sig-row[data-fi="${CSS.escape(fi)}"]`);
+  if(!sub)return;
+  sub.classList.toggle("collapsed");
+  row.classList.toggle("open",!sub.classList.contains("collapsed"));
+});
+// 折叠/展开全部信号
+$("toggleExpand").onclick=()=>{
+  S.tableCollapsed=!S.tableCollapsed;
+  $("frameTable").querySelectorAll(".sig-row").forEach(r=>r.classList.toggle("collapsed",S.tableCollapsed));
+  $("frameTable").querySelectorAll(".frame-row").forEach(r=>r.classList.toggle("open",!S.tableCollapsed));
+  updateToggleBtn();
+};
+
+// ---------- 曲线 ----------
+async function toggleSeries(key,on){
+  if(!on){S.series=S.series.filter(x=>x.key!==key);S.hasView=false;drawChart();renderLegend();return;}
+  if(S.series.some(x=>x.key===key))return;
+  const [msg,sig]=key.split("|");
+  const btn=$("loadBtn");
+  try{
+    const j=DbcLocal.series(msg,sig,6000);
+    if(!j.ok)throw new Error(j.error);
+    if(!j.count){toast("该信号无有效数据",true);const cb=$("tree").querySelector(`input[data-sig="${CSS.escape(key)}"]`);if(cb)cb.checked=false;return;}
+    S.series.push({key,msg,sig,color:colorFor(key),unit:j.unit,points:j.points,count:j.count,min:j.min,max:j.max,avg:j.avg,visible:true});
+    $("chartEmpty").style.display="none";
+    S.hasView=false;drawChart();renderLegend();
+  }catch(e){toast(e.message,true);}
+}
+// 拖拽信号到图形区绘制曲线（与回放区共用左侧信号项的 dragstart data，key=msg|sig）
+(function(){
+  const zone=$("chartBox");
+  zone.addEventListener("dragover",e=>{e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect="copy";zone.classList.add("drag-over");});
+  zone.addEventListener("dragleave",e=>{if(!zone.contains(e.relatedTarget))zone.classList.remove("drag-over");});
+  zone.addEventListener("drop",async e=>{
+    e.preventDefault();e.stopPropagation();zone.classList.remove("drag-over");
+    const key=e.dataTransfer.getData("text/plain");
+    if(!key||!key.includes("|"))return;
+    if(S.series.some(x=>x.key===key)){toast("该信号已在曲线中");return;}
+    await toggleSeries(key,true);
+    // 按实际结果同步左侧勾选（无数据时 toggleSeries 不会加入 series）
+    const cb=$("tree").querySelector(`input[data-sig="${CSS.escape(key)}"]`);
+    if(cb)cb.checked=S.series.some(x=>x.key===key);
+  });
+})();
+function renderLegend(){/* 图例栏已移除以腾出绘图空间；曲线的添加/移除由左侧信号勾选控制 */}
+$("clearSeries").onclick=()=>{S.series=[];S.hasView=false;renderTree();renderLegend();drawChart();$("chartEmpty").style.display="flex";};
+// 时间卡尺信息面板：显示各卡尺时间，两个及以上自动求差值
+function renderCursorInfo(){
+  const box=$("cursorInfo"),cnt=$("cursorCnt"),n=S.cursors.length;
+  cnt.textContent=n?("卡尺 "+n):"";
+  if(!n){box.style.display="none";return;}
+  const cs=S.cursors.slice().sort((a,b)=>a-b);
+  let html='<div class="ci-h">时间卡尺 · 左键放置（最多 2 个）</div>';
+  cs.forEach((t,i)=>{html+=`<div class="ci-r"><span>t${i+1}</span><b>${t.toFixed(6)} s</b></div>`;});
+  if(n>=2)html+=`<div class="ci-d">Δt = ${(cs[cs.length-1]-cs[0]).toFixed(6)} s</div>`;
+  box.innerHTML=html;box.style.display="block";
+}
+$("clearCursors").onclick=()=>{S.cursors=[];renderCursorInfo();drawChart();};
+$("normalize").onchange=()=>{S.hasView=false;drawChart();};
+// 纵轴模式切换：独立纵轴(每信号分带、各自刻度) / 合并显示(共享纵轴)
+$("axisSeg").querySelectorAll(".seg-btn").forEach(b=>b.onclick=()=>{
+  S.axisMode=b.dataset.mode;
+  $("axisSeg").querySelectorAll(".seg-btn").forEach(x=>x.classList.toggle("active",x===b));
+  $("axisSeg").style.setProperty("--i", b.dataset.mode==="merged"?1:0);
+  const merged=S.axisMode==="merged";
+  $("normalize").disabled=!merged;
+  $("normLabel").style.opacity=merged?"1":".5";
+  S.hasView=false;drawChart();
+});
+
+const cv=$("chartCanvas"),ctx=cv.getContext("2d");
+S.chartReady=true;
+let hoverX=null;
+function fitCanvas(){const r=cv.parentElement.getBoundingClientRect();const d=window.devicePixelRatio||1;cv.width=r.width*d;cv.height=r.height*d;ctx.setTransform(d,0,0,d,0,0);return{w:r.width,h:r.height};}
+function visibleSeries(){return S.series.filter(s=>s.visible&&s.points.length);}
+function chartRange(){
+  if(S.hasView)return S.view;
+  let x0=Infinity,x1=-Infinity;
+  for(const s of visibleSeries())for(const p of s.points){if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];}
+  if(!isFinite(x0)){x0=0;x1=1;}
+  if(x1===x0){x1=x0+1;}
+  return{x0,x1,y0:0,y1:1};
+}
+function drawChart(){
+  if(!S.series.length)return;
+  const {w,h}=fitCanvas();
+  const vis=visibleSeries();
+  const R=chartRange();
+  const L=64,Rg=16,T=S.cursors.length?34:16,B=30,pw=w-L-Rg,ph=h-T-B;
+  ctx.clearRect(0,0,w,h);
+  if(!vis.length)return;
+  const X=t=>L+(t-R.x0)/(R.x1-R.x0)*pw;
+  const independent=S.axisMode==="independent";
+  const norm=$("normalize").checked;
+  const C={
+    lane1:cssVar("--chart-lane1"),lane2:cssVar("--chart-lane2"),grid:cssVar("--chart-grid"),
+    axis:cssVar("--chart-axis"),label:cssVar("--chart-label"),cursor:cssVar("--chart-cursor"),
+    band:cssVar("--chart-band"),cursorBg:cssVar("--chart-cursor-bg"),orangeDim:cssVar("--orange-dim"),
+    accent:cssVar("--accent"),
+  };
+
+  if(independent){
+    // === 独立纵轴：每个信号一个垂直分带，各自 Y 刻度 ===
+    const n=vis.length, gap=8;
+    const laneH=(ph-gap*(n-1))/n;
+    vis.forEach((s,i)=>{
+      const top=T+i*(laneH+gap), bot=top+laneH;
+      let y0=isFinite(s.min)?s.min:0, y1=isFinite(s.max)?s.max:1;
+      if(y1===y0){y1=y0+1;}
+      const pad=(y1-y0)*.1;y0-=pad;y1+=pad;
+      const Y=v=>bot-(v-y0)/(y1-y0)*laneH;
+      // 分带背景
+      ctx.fillStyle=i%2?C.lane1:C.lane2;ctx.fillRect(L,top,pw,laneH);
+      ctx.strokeStyle=C.grid;ctx.lineWidth=1;ctx.strokeRect(L,top,pw,laneH);
+      // 该信号专属 Y 网格与刻度（刻度用信号颜色区分）
+      ctx.font="10px Consolas";
+      for(let k=0;k<=3;k++){
+        const y=top+laneH*k/3;
+        ctx.strokeStyle=C.grid;ctx.beginPath();ctx.moveTo(L+1,y);ctx.lineTo(L+pw,y);ctx.stroke();
+        ctx.fillStyle=s.color;ctx.textAlign="right";ctx.textBaseline="middle";
+        ctx.fillText(fmt(y1-(y1-y0)*k/3),L-6,y);
+      }
+      // 带内信号名 + 单位标签
+      ctx.fillStyle=s.color;ctx.textAlign="left";ctx.textBaseline="top";ctx.font="11px sans-serif";
+      ctx.fillText(s.sig+(s.unit?" ("+s.unit+")":""),L+8,top+5);
+      // 曲线
+      ctx.strokeStyle=s.color;ctx.lineWidth=1.6;ctx.beginPath();
+      let started=false;
+      for(const p of s.points){
+        const x=X(p[0]);
+        if(x<L-2||x>L+pw+2){started=false;continue;}
+        const y=Y(p[1]);
+        if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    });
+    // X 轴刻度只在最底部画一次
+    ctx.fillStyle=C.axis;ctx.font="11px Consolas";ctx.textAlign="center";ctx.textBaseline="top";
+    for(let i=0;i<=6;i++)ctx.fillText((R.x0+(R.x1-R.x0)*i/6).toFixed(3),L+pw*i/6,T+ph+7);
+    ctx.fillStyle=C.label;ctx.font="11px sans-serif";ctx.textAlign="left";ctx.fillText("t (s)",L+pw-30,h-14);
+  }else{
+    // === 合并显示：共享纵轴 ===
+    let y0=Infinity,y1=-Infinity;
+    if(norm){y0=-2;y1=102;}
+    else for(const s of vis){if(s.min<y0)y0=s.min;if(s.max>y1)y1=s.max;}
+    if(!isFinite(y0)){y0=0;y1=1;}
+    if(y1===y0){y1=y0+1;}
+    const pad=(y1-y0)*.08;y0-=pad;y1+=pad;
+    const Y=v=>T+ph-(v-y0)/(y1-y0)*ph;
+    ctx.strokeStyle=C.grid;ctx.lineWidth=1;ctx.fillStyle=C.axis;ctx.font="11px Consolas";
+    for(let i=0;i<=5;i++){
+      const y=T+ph*i/5;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw,y);ctx.stroke();
+      ctx.textAlign="right";ctx.textBaseline="middle";
+      ctx.fillText(fmt(y1-(y1-y0)*i/5),L-8,y);
+    }
+    for(let i=0;i<=6;i++){
+      const x=L+pw*i/6;ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,T+ph);ctx.stroke();
+      ctx.textAlign="center";ctx.textBaseline="top";
+      ctx.fillText((R.x0+(R.x1-R.x0)*i/6).toFixed(3),x,T+ph+7);
+    }
+    ctx.fillStyle=C.label;ctx.font="11px sans-serif";ctx.textAlign="left";ctx.fillText("t (s)",L+pw-30,h-14);
+    for(const s of vis){
+      ctx.strokeStyle=s.color;ctx.lineWidth=1.6;ctx.beginPath();
+      let started=false;
+      for(const p of s.points){
+        let v=p[1];
+        if(norm&&isFinite(s.min)&&isFinite(s.max)&&s.max!==s.min)v=(v-s.min)/(s.max-s.min)*100;
+        const x=X(p[0]),y=Y(v);
+        if(x<L-2||x>L+pw+2){started=false;continue;}
+        if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+  }
+  // 时间卡尺：竖线 + 时间标签；两个及以上画区间阴影并标注 Δt
+  if(S.cursors.length){
+    const cs=S.cursors.slice().sort((a,b)=>a-b);
+    const xOf=t=>L+(t-R.x0)/(R.x1-R.x0)*pw;
+    const xFirst=xOf(cs[0]),xLast=xOf(cs[cs.length-1]);
+    if(cs.length>1){
+      ctx.fillStyle=C.band;
+      ctx.fillRect(Math.max(L,xFirst),T,Math.max(1,Math.min(L+pw,xLast)-Math.max(L,xFirst)),ph);
+    }
+    cs.forEach((t,i)=>{
+      const x=xOf(t);
+      if(x<L-1||x>L+pw+1)return;
+      ctx.setLineDash([]);ctx.strokeStyle=C.cursor;ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,T+ph);ctx.stroke();
+      ctx.fillStyle=C.cursor;ctx.beginPath();
+      ctx.moveTo(x,T);ctx.lineTo(x-5,T-7);ctx.lineTo(x+5,T-7);ctx.closePath();ctx.fill();
+      // 右上角是信息面板，面板覆盖区不画标签（面板内已列出全部时间）
+      if(x<L+pw-178){
+        const lab="t"+(i+1)+"="+t.toFixed(6),ly=T-9-(i%2?11:0);
+        ctx.font="10px Consolas";const lw=ctx.measureText(lab).width;
+        ctx.fillStyle=C.cursorBg;ctx.fillRect(x-lw/2-3,ly-11,lw+6,12);
+        ctx.fillStyle=C.cursor;ctx.textAlign="center";ctx.textBaseline="bottom";
+        ctx.fillText(lab,x,ly);
+      }
+    });
+    if(cs.length>1){
+      const label="Δt = "+(cs[cs.length-1]-cs[0]).toFixed(6)+" s";
+      ctx.font="bold 11px Consolas";
+      const tw=ctx.measureText(label).width,bx=Math.max(L+2,Math.min(L+pw-tw-14,(xFirst+xLast)/2-tw/2-7));
+      ctx.fillStyle=C.cursorBg;ctx.fillRect(bx,T+5,tw+14,20);
+      ctx.strokeStyle=C.orangeDim;ctx.lineWidth=1;ctx.strokeRect(bx,T+5,tw+14,20);
+      ctx.fillStyle=C.cursor;ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.fillText(label,bx+(tw+14)/2,T+15);
+    }
+  }
+  // 十字线（两模式共用）
+  if(hoverX!==null&&hoverX>=L&&hoverX<=L+pw){
+    const t=R.x0+(hoverX-L)/pw*(R.x1-R.x0);
+    ctx.strokeStyle=C.accent+"88";ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(hoverX,T);ctx.lineTo(hoverX,T+ph);ctx.stroke();ctx.setLineDash([]);
+    showTip(t);
+  }
+}
+function fmt(v){if(!isFinite(v))return "";const a=Math.abs(v);return a>=1000?v.toFixed(0):a>=10?v.toFixed(2):a>=1?v.toFixed(3):v.toPrecision(4);}
+// 卡片内的迷你折线图：把时序点映射到 70x22 的 SVG，并标出当前播放头位置
+const CHART_MODES=["line","gauge","bar"];
+const CHART_LABEL={line:"折线图",gauge:"仪表盘",bar:"柱状图"};
+function miniChartSvg(key,points,color,t,value){
+  if(!points||points.length<2)return "";
+  const mode=(S.play.chartMode&&S.play.chartMode[key])||"line";
+  const w=70,h=22,pad=2;
+  let x0=points[0][0],x1=points[points.length-1][0];
+  let y0=Infinity,y1=-Infinity;
+  for(const p of points){if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1];}
+  if(y1===y0){y1=y0+1;}
+  const X=tt=>pad+(tt-x0)/((x1-x0)||1)*(w-2*pad);
+  const Y=vv=>h-pad-(vv-y0)/(y1-y0)*(h-2*pad);
+  const cur=(value!==null&&value!==undefined)?value:(function(){let c=points[0];for(const p of points)if(Math.abs(p[0]-t)<Math.abs(c[0]-t))c=p;return c[1];})();
+  const frac=Math.max(0,Math.min(1,(cur-y0)/(y1-y0)));
+  const title=`点击切换图表（当前：${CHART_LABEL[mode]}）`;
+  const open=`<svg class="sparkline mini-chart" data-chart-key="${esc(key)}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" title="${title}">`;
+
+  if(mode==="gauge"){
+    // 半圆仪表盘：背景弧 + 数值弧 + 指针 + 中心点
+    const cx=w/2, cy=h-2, r=9;
+    const pol=(a,rad)=>[cx+rad*Math.cos(a), cy-rad*Math.sin(a)];
+    const a0=Math.PI, a1=0, av=Math.PI-(frac*Math.PI);
+    const arc=(a,b)=>{const p=pol(a,r),q=pol(b,r);return `M ${p[0].toFixed(1)} ${p[1].toFixed(1)} A ${r} ${r} 0 0 1 ${q[0].toFixed(1)} ${q[1].toFixed(1)}`;};
+    const needle=pol(av,r-2);
+    return open+`<title>${title}</title>`
+      +`<path d="${arc(a0,a1)}" fill="none" stroke="var(--border2)" stroke-width="3" stroke-linecap="round"/>`
+      +`<path d="${arc(a0,av)}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round"/>`
+      +`<line x1="${cx}" y1="${cy}" x2="${needle[0].toFixed(1)}" y2="${needle[1].toFixed(1)}" stroke="${color}" stroke-width="1.2"/>`
+      +`<circle cx="${cx}" cy="${cy}" r="1.6" fill="${color}"/></svg>`;
+  }
+  if(mode==="bar"){
+    // 横向柱状图：轨道 + 按比例填充
+    const bh=10, by=(h-bh)/2, bw=w-2*pad;
+    const fw=Math.max(0.5,bw*frac);
+    return open+`<title>${title}</title>`
+      +`<rect x="${pad}" y="${by}" width="${bw}" height="${bh}" rx="${bh/2}" fill="var(--border2)"/>`
+      +`<rect x="${pad}" y="${by}" width="${fw.toFixed(1)}" height="${bh}" rx="${bh/2}" fill="${color}"/></svg>`;
+  }
+  // 折线图：只绘制到当前进度 t 的线段，后续线段暂不显示
+  const vis=points.filter(p=>p[0]<=t);
+  if(!vis.length)return open+`<title>${title}</title></svg>`;
+  let d=vis.map((p,i)=>(i?"L":"M")+X(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1)).join(" ");
+  // 若 t 落在两点之间，补一段插值到 t，让线走到播放头
+  if(vis.length<points.length){
+    const p0=vis[vis.length-1];
+    if(t>p0[0])d+=` L ${X(t).toFixed(1)} ${Y(p0[1]).toFixed(1)}`;
+  }
+  const cx=X(Math.min(t,x1)).toFixed(1);
+  return open+`<title>${title}</title>`
+    +`<path class="sl-path" stroke="${color}" d="${d}"/>`
+    +`<line class="sl-cur" x1="${cx}" y1="1" x2="${cx}" y2="${h-1}" stroke="${color}" opacity=".5"/></svg>`;
+}
+function showTip(t){
+  const tip=$("tip");let html=`<div class="tr"><span style="color:var(--fg3)">t =</span><span>${t.toFixed(6)} s</span></div>`;let any=false;
+  for(const s of visibleSeries()){
+    const p=nearestPoint(s.points,t);if(!p)continue;
+    html+=`<div class="tr"><span style="color:${s.color}">■ ${esc(s.sig)}</span><span class="sv">${fmt(p[1])} ${esc(s.unit)}</span></div>`;any=true;
+  }
+  tip.innerHTML=html;tip.style.display=any?"block":"none";
+  const box=$("chartBox").getBoundingClientRect();
+  let left=hoverX+14;if(left>box.width-190)left=hoverX-190;
+  tip.style.left=left+"px";tip.style.top="30px";
+}
+function nearestPoint(pts,t){if(!pts.length)return null;let lo=0,hi=pts.length-1;while(lo<hi){const m=(lo+hi)>>1;if(pts[m][0]<t)lo=m+1;else hi=m;}if(lo>0&&Math.abs(pts[lo-1][0]-t)<Math.abs(pts[lo][0]-t))lo--;return pts[lo];}
+// 鼠标：左键按下后若移动超过阈值视为平移，否则抬起时视为单击放卡尺
+let drag=null;
+function cursorTimeAt(clientX,clientY,R){
+  const r=cv.getBoundingClientRect(),L=64,Rg=16,B=30;
+  const x=clientX-r.left,y=clientY-r.top,pw=r.width-L-Rg;
+  if(x<L||x>L+pw||y<0||y>r.height-B)return null;
+  const t=R.x0+(x-L)/pw*(R.x1-R.x0);
+  return Math.max(R.x0,Math.min(R.x1,t));
+}
+cv.onmousemove=e=>{
+  const r=cv.getBoundingClientRect();hoverX=e.clientX-r.left;
+  if(drag){
+    if(Math.abs(e.clientX-drag.x)>3||Math.abs(e.clientY-drag.y)>3)drag.moved=true;
+    if(drag.moved){const L=64,pw=r.width-L-16,dx=(e.clientX-drag.x)/pw*(drag.R.x1-drag.R.x0);
+      S.view={x0:drag.R.x0-dx,x1:drag.R.x1-dx,y0:drag.R.y0,y1:drag.R.y1};S.hasView=true;}
+  }
+  drawChart();
+};
+cv.onmouseleave=()=>{hoverX=null;$("tip").style.display="none";drawChart();};
+cv.onwheel=e=>{if(!S.series.length)return;e.preventDefault();const R=chartRange(),r=cv.getBoundingClientRect(),L=64,pw=r.width-L-16;
+  const t=R.x0+(e.clientX-r.left-L)/pw*(R.x1-R.x0);const f=e.deltaY>0?1.15:0.87;
+  const n0=t-(t-R.x0)*f,n1=t+(R.x1-t)*f;S.view={x0:n0,x1:n1,y0:R.y0,y1:R.y1};S.hasView=true;drawChart();
+};
+cv.onmousedown=e=>{
+  if(e.button!==0){drag=null;return;}
+  drag={x:e.clientX,y:e.clientY,R:chartRange(),moved:false};
+};
+window.onmouseup=e=>{
+  if(drag&&!drag.moved&&e.button===0&&e.target===cv&&S.series.length){
+    const t=cursorTimeAt(e.clientX,e.clientY,drag.R);
+    if(t!==null){
+      if(S.cursors.length>=2)toast("最多只能放置两个卡尺，请先清除卡尺");
+      else {S.cursors.push(t);renderCursorInfo();drawChart();}
+    }
+  }
+  drag=null;
+};
+window.addEventListener("resize",()=>{if($("pane-chart").classList.contains("active"))drawChart();});
+
+// ---------- 回放 ----------
+$("playBtn").onclick=()=>togglePlay();
+$("stopBtn").onclick=()=>{S.play.t=0;S.play.playing=false;$("playBtn").textContent="▶";updateSeek();fetchAround(true);};
+$("seek").oninput=e=>{S.play.t=S.meta?S.meta.stats.duration*(+e.target.value/1000):0;$("curTime").textContent=S.play.t.toFixed(3)+" s";positionSeekTime();fetchAround(true);};
+// 倍率：把下拉框的值同步到 S.play.speed（原实现缺少此绑定，导致倍率失效）
+$("speed").onchange=e=>{S.play.speed=parseFloat(e.target.value);};
+// 显示列数：自动按 160px 排布，或固定 N 列；独立信号与报文块内信号共用同一网格
+function applyPlayColumns(){
+  const v=$("colCount").value;
+  const grid=v==="auto"?"repeat(auto-fill,160px)":`repeat(${parseInt(v,10)},minmax(0,1fr))`;
+  $("liveGrid").style.setProperty("--play-cols",grid);
+}
+$("colCount").onchange=applyPlayColumns;
+applyPlayColumns();
+
+// 拖放：从左侧信号树拖信号到回放区固定显示
+(function(){
+  const zone=$("liveFrame");
+  zone.addEventListener("dragover",e=>{e.preventDefault();e.dataTransfer.dropEffect="copy";zone.classList.add("drag-over");});
+  zone.addEventListener("dragleave",e=>{if(!zone.contains(e.relatedTarget))zone.classList.remove("drag-over");});
+  zone.addEventListener("drop",e=>{
+    e.preventDefault();zone.classList.remove("drag-over");
+    const key=e.dataTransfer.getData("text/plain");
+    if(!key)return;
+    if(key.startsWith("msg:")){addMsgWatch(key.slice(4));return;}
+    if(!key.includes("|"))return;
+    addWatch(key);
+  });
+})();
+function addMsgWatch(msg){
+  if(!S.sid)return toast("请先加载数据",true);
+  if(!S.meta.messages.some(m=>m.name===msg))return toast("报文不存在",true);
+  if(S.play.msgWatch.includes(msg))return toast("该报文已在固定显示中");
+  S.play.suppressDefault=false;
+  S.play.msgWatch.push(msg);
+  renderWatchBar();
+  fetchAround(true);
+  const def=S.meta.messages.find(x=>x.name===msg);
+  if(def)def.signals.forEach(sg=>loadWatchSeries(msg+"|"+sg.name));
+  toast("已固定显示报文："+msg);
+}
+function addWatch(key){
+  if(!S.sid)return toast("请先加载数据",true);
+  if(S.play.watch.includes(key))return toast("该信号已在固定显示中");
+  S.play.suppressDefault=false;
+  const [msg,sig]=key.split("|");
+  if(!findSig(msg,sig))return toast("信号不存在",true);
+  S.play.watch.push(key);
+  S.play.watchVals[key]=undefined;
+  renderWatchBar();
+  // 无条件拉取播放头附近的帧：即使从未播放过（curFrame 为空）也要立即渲染卡片
+  fetchAround(true);
+  // 异步拉取该信号时序，供卡片内迷你折线图使用
+  loadWatchSeries(key);
+  toast("已固定显示："+sig);
+}
+async function loadWatchSeries(key){
+  if(S.play.watchSeries[key])return; // 已缓存
+  const [msg,sig]=key.split("|");
+  try{
+    const j=DbcLocal.series(msg,sig,600);
+    if(j.ok&&j.count)S.play.watchSeries[key]=j.points;
+    if(S.play.curFrame)renderLive(S.play.curFrame); // 折线图到达后重绘
+  }catch(e){/* 折线图失败不影响数值显示 */}
+}
+// 事件委托：点击固定显示卡片右上角的 × 删除单个信号（卡片会被重建，故用委托）
+$("liveGrid").addEventListener("click",e=>{
+  const chart=e.target.closest(".mini-chart");
+  if(chart){
+    const key=chart.dataset.chartKey;
+    if(!key)return;
+    if(!S.play.chartMode)S.play.chartMode={};
+    const cur=S.play.chartMode[key]||"line";
+    S.play.chartMode[key]=CHART_MODES[(CHART_MODES.indexOf(cur)+1)%CHART_MODES.length];
+    if(S.play.curFrame)renderLive(S.play.curFrame);
+    toast("图表已切换："+CHART_LABEL[S.play.chartMode[key]]);
+    return;
+  }
+  const x=e.target.closest(".card-x");if(!x)return;
+  if(x.dataset.rmMsg){
+    const msg=x.dataset.rmMsg;
+    S.play.msgWatch=S.play.msgWatch.filter(m=>m!==msg);
+    const def=S.meta&&S.meta.messages.find(m=>m.name===msg);
+    if(def)def.signals.forEach(sg=>{
+      const key=msg+"|"+sg.name;
+      if(S.play.watch.includes(key))return;
+      delete S.play.watchVals[key];delete S.play.watchSeries[key];if(S.play.chartMode)delete S.play.chartMode[key];
+    });
+    if(!afterWatchRemove())fetchAround(true);
+    return;
+  }
+  const key=x.dataset.rm;
+  S.play.watch=S.play.watch.filter(k=>k!==key);
+  delete S.play.watchVals[key];delete S.play.watchSeries[key];if(S.play.chartMode)delete S.play.chartMode[key];
+  if(!afterWatchRemove() && S.play.curFrame)renderLive(S.play.curFrame);
+});
+// 删除固定项后：若已无任何固定信号/报文，清空回放区并抑制默认帧信号视图
+function afterWatchRemove(){
+  renderWatchBar();
+  if(S.play.watch.length||S.play.msgWatch.length)return false;
+  S.play.suppressDefault=true;
+  S.play.curFrame=null;
+  S.play.watchFrames={};
+  $("liveGrid").innerHTML="";
+  return true;
+}
+function renderWatchBar(){
+  const hasSignal=S.play.watch.length>0, hasMsg=S.play.msgWatch.length>0;
+  $("watchBar").style.display=(hasSignal||hasMsg)?"none":"flex";
+}
+function togglePlay(){if(!S.sid)return toast("请先加载数据",true);S.play.playing=!S.play.playing;$("playBtn").textContent=S.play.playing?"⏸":"▶";if(S.play.playing){S.play.last=performance.now();requestAnimationFrame(tick);}}
+function tick(now){
+  if(!S.play.playing)return;
+  const dt=(now-S.play.last)/1000;S.play.last=now;
+  S.play.t+=dt*S.play.speed;
+  const dur=S.meta.stats.duration;
+  if(S.play.t>dur){S.play.t=dur;S.play.playing=false;$("playBtn").textContent="▶";}
+  $("curTime").textContent=S.play.t.toFixed(3)+" s";
+  updateSeek();
+  if(now-S.play.lastReq>90){S.play.lastReq=now;fetchAround(false);}
+  if(S.play.playing)requestAnimationFrame(tick);
+}
+function updateSeek(){$("seek").value=S.meta?Math.round(S.play.t/S.meta.stats.duration*1000):0;positionSeekTime();}
+function positionSeekTime(){
+  const seek=$("seek"), bubble=$("curTime");
+  const dur=S.meta?S.meta.stats.duration:0;
+  const pct=dur?Math.min(1,Math.max(0,S.play.t/dur)):(+seek.value/1000);
+  const w=seek.clientWidth||seek.getBoundingClientRect().width, thumb=16;
+  bubble.style.left=(thumb/2+(w-thumb)*pct)+"px";
+}
+async function fetchAround(reset){
+  if(!S.sid)return;
+  const watchMsgs=[...new Set([...S.play.watch.map(k=>k.split("|")[0]), ...S.play.msgWatch])];
+  const j=DbcLocal.framesAround(S.play.t,Math.max(.05,S.play.speed*.15),20,watchMsgs);
+  if(!j.ok||!j.frames.length)return;
+  // 选最接近播放头的帧
+  let best=j.frames[0],bd=Infinity;
+  for(const f of j.frames){const d=Math.abs(f.t-S.play.t);if(d<bd){bd=d;best=f;}}
+  if(S.play.msgWatch.length){
+    const msgFrames=S.play.msgWatch.map(m=>j.watch[m]).filter(Boolean);
+    if(msgFrames.length)best=msgFrames[0];
+  }
+  S.play.watchFrames=j.watch||{};
+  renderLive(best);
+}
+function renderLive(f){
+  if(!f)return;
+  const hasSignal=S.play.watch.length>0, hasMsg=S.play.msgWatch.length>0;
+
+  // 默认模式：未固定任何信号/报文时，显示当前帧自带的全部信号
+  if(!hasSignal && !hasMsg){
+    if(S.play.suppressDefault){$("liveGrid").innerHTML="";return;}
+    const prev=S.play.curSigVals;const changed=new Set();
+    for(const n in f.sigs)if(prev[n]!==undefined&&prev[n]!==f.sigs[n][0])changed.add(n);
+    const names=Object.keys(f.sigs);
+    $("liveGrid").innerHTML=names.length?names.map(n=>{
+      const sg=findSig(f.msg,n);const unit=sg?sg.unit:"";
+      return `<div class="sig-card ${changed.has(n)?'changed':''}">
+        <div class="n"><span class="sig-name" title="${esc(n)}"><span class="sig-dot"></span><span class="sig-label">${esc(n)}</span></span><span class="wc-msg">${sg&&sg.choices&&sg.choices[String(f.sigs[n][1])]?esc(sg.choices[String(f.sigs[n][1])]):''}</span></div>
+        <div class="vv">${fmt(f.sigs[n][0])} <small>${esc(unit)}</small></div></div>`;}).join(""):'<div style="color:var(--fg3);padding:20px">该帧无已定义信号</div>';
+    S.play.curSigVals={};for(const n in f.sigs)S.play.curSigVals[n]=f.sigs[n][0];
+    S.play.curFrame=f;
+    return;
+  }
+
+  // 固定显示模式：整帧报文块 + 单信号卡片；两类信号卡片共用同一套样式与交互
+  const parts=[];
+  const changed=new Set(), prev=S.play.watchVals, next={};
+
+  // 1) 整帧报文：每块显示报文头（时间/ID/名称/原始数据）+ 该帧全部信号卡片
+  S.play.msgWatch.forEach(msg=>{
+    const wf=(S.play.watchFrames||{})[msg];
+    if(!wf)return;
+    const names=Object.keys(wf.sigs||{});
+    const cards=names.length?names.map(n=>{
+      const sg=findSig(msg,n), unit=sg?sg.unit:"";
+      const pair=wf.sigs[n], v=pair[0], raw=pair[1], key=msg+"|"+n;
+      if(v!==null){next[key]=v;if(prev[key]!==undefined&&prev[key]!==v)changed.add(key);}
+      const choice=(sg&&sg.choices&&raw!==null)?(sg.choices[String(raw)]||""):"";
+      const spark=miniChartSvg(key,S.play.watchSeries[key],colorFor(key),S.play.t,v);
+      return `<div class="sig-card ${changed.has(key)?'changed':''}">
+        <div class="n"><span class="sig-name" title="${esc(n)}"><span class="sig-dot"></span><span class="sig-label">${esc(n)}</span></span><span class="wc-msg" title="${esc(msg)}">${esc(msg)}${choice?' · '+esc(choice):''}</span></div>
+        <div class="vv"><span>${v===null?'<span style="color:var(--fg3)">—</span>':fmt(v)}</span><small>${esc(unit)}</small>${spark}</div></div>`;
+    }).join(""):'<div style="color:var(--fg3);padding:16px">该报文无已定义信号</div>';
+    parts.push(`<div class="msg-watch-block">
+      <div class="msg-watch-head">
+        <span class="t">${wf.t.toFixed(6)} s</span>
+        <span class="idb">${wf.id_hex}</span>
+        <span class="mn">${esc(msg)}</span>
+        <span class="data">${esc(wf.data)}</span>
+        <span class="card-x" data-rm-msg="${esc(msg)}" title="移除该报文">×</span>
+      </div>
+      <div class="msg-watch-grid">${cards}</div>
+    </div>`);
+  });
+
+  // 2) 单信号卡片：按拖拽顺序，各自从所属报文最近帧取值（可跨报文）
+  if(hasSignal){
+    S.play.watch.forEach(key=>{
+      const [msg,sig]=key.split("|");
+      const wf=(S.play.watchFrames||{})[msg];
+      const pair=wf&&wf.sigs[sig];
+      const v=pair?pair[0]:null, raw=pair?pair[1]:null;
+      if(v!==null){next[key]=v;if(prev[key]!==undefined&&prev[key]!==v)changed.add(key);}
+      const sg=findSig(msg,sig);
+      const unit=sg?sg.unit:"";
+      const choice=(sg&&sg.choices&&raw!==null)?(sg.choices[String(raw)]||""):"";
+      const spark=miniChartSvg(key,S.play.watchSeries[key],colorFor(key),S.play.t,v);
+      parts.push(`<div class="sig-card ${changed.has(key)?'changed':''}">
+        <span class="card-x" data-rm="${esc(key)}" title="移除该信号">×</span>
+        <div class="n"><span class="sig-name" title="${esc(sig)}"><span class="sig-dot"></span><span class="sig-label">${esc(sig)}</span></span><span class="wc-msg" title="${esc(msg)}">${esc(msg)}${choice?' · '+esc(choice):''}</span></div>
+        <div class="vv"><span>${v===null?'<span style="color:var(--fg3)">—</span>':fmt(v)}</span><small>${esc(unit)}</small>${spark}</div></div>`);
+    });
+  }
+  S.play.watchVals=next;
+  $("liveGrid").innerHTML=parts.join("");
+  S.play.curFrame=f;
+}
+function findSig(msg,sig){if(!S.meta||!msg)return null;const m=S.meta.messages.find(x=>x.name===msg);return m?m.signals.find(s=>s.name===sig):null;}
+</script>
+</body>
+</html>

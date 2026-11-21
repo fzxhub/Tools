@@ -3,9 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0a0510">
+<meta name="theme-color" content="#06110c">
 <meta name="description" content="在浏览器中通过 WebUSB / DFU 为 Bugable CAN 适配器刷写固件。">
 <title>CAN 固件升级 · Bugable</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='28%25' r='72%25'%3E%3Cstop offset='0' stop-color='%23bdf5d5'/%3E%3Cstop offset='45%25' stop-color='%234fd39a'/%3E%3Cstop offset='100%25' stop-color='%230f8a5a'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='13' fill='url(%23g)'/%3E%3Ccircle cx='11.5' cy='10.5' r='3.1' fill='%23ffffff' opacity='.55'/%3E%3C/svg%3E">
 
 <script>
 /* 主题在首次绘制前落定，避免深色 / 浅色闪烁。 */
@@ -179,7 +180,7 @@ ga('send', 'pageview');
     root.setAttribute('data-theme', theme);
     root.style.colorScheme = theme;
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', theme === 'dark' ? '#0a0510' : '#fff7fa');
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#06110c' : '#f3fbf6');
     if (group) {
       group.style.setProperty('--i', ORDER.indexOf(mode));
       var btns = group.querySelectorAll('button[data-mode]');

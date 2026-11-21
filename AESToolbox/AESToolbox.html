@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AES Toolbox V1.0.0</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%231f6feb'/%3E%3Cstop offset='1' stop-color='%230d3f7d'/%3E%3C/linearGradient%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Ctext x='16' y='16.5' font-family='Consolas,Menlo,monospace' font-size='10.5' font-weight='bold' fill='%23ffffff' text-anchor='middle' dominant-baseline='central'%3EAES%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='28%25' r='72%25'%3E%3Cstop offset='0' stop-color='%23bdf5d5'/%3E%3Cstop offset='45%25' stop-color='%234fd39a'/%3E%3Cstop offset='100%25' stop-color='%230f8a5a'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='13' fill='url(%23g)'/%3E%3Ccircle cx='11.5' cy='10.5' r='3.1' fill='%23ffffff' opacity='.55'/%3E%3C/svg%3E">
 <style>
   /* ---------- 主题变量：默认暗黑 ---------- */
   :root {
@@ -160,7 +160,9 @@
     padding: 3px 6px; border-radius: 5px;
     border: 1px solid var(--line); background: var(--badge-bg);
   }
-  .brand p { margin: 2px 0 0; font-size: 11.5px; color: var(--dim-2); font-family: var(--mono); letter-spacing: .2px; }
+  /* 标题与副标题同一行，参考 UDS 工具箱标题栏 */
+  .brand-main { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; min-width: 0; }
+  .brand p { margin: 0; font-size: 11.5px; color: var(--dim-2); font-family: var(--mono); letter-spacing: .2px; }
   .top-actions { display: flex; align-items: center; gap: 10px; }
   @media (max-width: 640px) {
     /* 窄屏：放不下时操作按钮自动换行并右对齐，避免顶栏撑破 */
@@ -327,6 +329,122 @@
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-thumb { background: var(--sb); border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
   ::-webkit-scrollbar-thumb:hover { background: var(--sb-hover); background-clip: padding-box; }
+
+  /* ================= CANUpdater 风格皮肤（仅配色 / 质感，不改布局） ================= */
+  :root {
+    --bg:#06110c;
+    --bg-g1:rgba(58,220,145,.34);
+    --bg-g2:rgba(45,190,185,.30);
+    --panel:rgba(255,255,255,.055);
+    --panel-2:rgba(255,255,255,.075);
+    --card-1:rgba(255,255,255,.065);
+    --card-2:rgba(255,255,255,.035);
+    --sunken:rgba(0,0,0,.28);
+    --sunken-focus:rgba(79,201,148,.10);
+    --chip:rgba(255,255,255,.045);
+    --chip-2:rgba(255,255,255,.035);
+    --chip-hover:rgba(255,255,255,.085);
+    --line:rgba(255,255,255,.11);
+    --line-soft:rgba(255,255,255,.075);
+    --line-hover:rgba(79,201,148,.38);
+    --chip-line-hover:rgba(79,201,148,.35);
+    --text:#f4f2f7;
+    --dim:#a79fb4;
+    --dim-2:#7b7288;
+    --foot:#6d6478;
+    --placeholder:#5d5568;
+    --accent:#4fd39a;
+    --accent-dim:#7a2f50;
+    --focus-ring:rgba(79,201,148,.20);
+    --ok:#4ad9a4;
+    --warn:#ffc46b;
+    --err:#ff7387;
+    --btn:rgba(255,255,255,.06);
+    --btn-hover:rgba(255,255,255,.10);
+    --btn-line-hover:rgba(79,201,148,.40);
+    --ghost-hover:rgba(255,255,255,.06);
+    --active-fg:#ffffff;
+    --active-1:rgba(79,201,148,.22);
+    --active-2:rgba(161,114,255,.18);
+    --active-line:rgba(79,201,148,.55);
+    --active-ring:rgba(79,201,148,.35);
+    --active-inset:rgba(255,255,255,.12);
+    --badge-bg:rgba(255,255,255,.05);
+    --inset:rgba(255,255,255,.08);
+    --card-shadow:0 22px 50px -24px rgba(0,0,0,.75);
+    --sb:rgba(255,255,255,.16);
+    --sb-hover:rgba(255,255,255,.26);
+  }
+  html[data-theme="light"] {
+    --bg:#f3fbf6;
+    --bg-g1:rgba(120,220,165,.48);
+    --bg-g2:rgba(150,215,255,.36);
+    --panel:rgba(255,255,255,.70);
+    --panel-2:rgba(255,255,255,.82);
+    --card-1:rgba(255,255,255,.74);
+    --card-2:rgba(255,255,255,.58);
+    --sunken:rgba(255,255,255,.62);
+    --sunken-focus:rgba(47,174,122,.08);
+    --chip:rgba(255,255,255,.70);
+    --chip-2:rgba(255,255,255,.60);
+    --chip-hover:rgba(255,255,255,.90);
+    --line:rgba(18,60,36,.12);
+    --line-soft:rgba(18,60,36,.08);
+    --line-hover:rgba(47,174,122,.40);
+    --chip-line-hover:rgba(47,174,122,.35);
+    --text:#2b1a25;
+    --dim:#6d5b67;
+    --dim-2:#8e7d89;
+    --foot:#8e7d89;
+    --placeholder:#a08e9b;
+    --accent:#2fae7a;
+    --accent-dim:#f3c4d8;
+    --focus-ring:rgba(47,174,122,.16);
+    --ok:#128a63;
+    --warn:#b26a00;
+    --err:#d62f4f;
+    --err-fg:#9c2020;
+    --btn:rgba(255,255,255,.72);
+    --btn-hover:rgba(255,255,255,.92);
+    --btn-line-hover:rgba(47,174,122,.40);
+    --ghost-hover:rgba(18,60,36,.05);
+    --active-fg:#a32258;
+    --active-1:rgba(47,174,122,.14);
+    --active-2:rgba(124,77,219,.12);
+    --active-line:rgba(47,174,122,.45);
+    --active-ring:rgba(47,174,122,.25);
+    --active-inset:rgba(255,255,255,.80);
+    --badge-bg:rgba(255,255,255,.60);
+    --inset:rgba(255,255,255,.80);
+    --card-shadow:0 20px 44px -24px rgba(25,90,55,.40);
+    --sb:rgba(18,60,36,.18);
+    --sb-hover:rgba(18,60,36,.28);
+  }
+  body { background-attachment: fixed; }
+  .card {
+    -webkit-backdrop-filter: blur(18px) saturate(1.25);
+    backdrop-filter: blur(18px) saturate(1.25);
+  }
+  .logo {
+    background:linear-gradient(145deg,#4fd39a,#2f9e68);
+    box-shadow:0 6px 22px -6px rgba(79,201,148,.6), inset 0 1px 0 rgba(255,255,255,.35);
+  }
+  html[data-theme="light"] .logo {
+    background:linear-gradient(145deg,#2fae7a,#1f8a5a);
+    box-shadow:0 6px 22px -6px rgba(47,174,122,.45), inset 0 1px 0 rgba(255,255,255,.6);
+  }
+  .btn.primary {
+    background:linear-gradient(135deg,#4fd39a,#2f9e68);
+    border-color:rgba(79,201,148,.75);
+    color:#fff;
+    box-shadow:0 8px 22px -10px rgba(79,201,148,.85), inset 0 1px 0 rgba(255,255,255,.28);
+  }
+  .btn.primary:hover { background:linear-gradient(135deg,#6ad9ae,#54bd90); }
+  html[data-theme="light"] .btn.primary {
+    background:linear-gradient(135deg,#2fae7a,#1f8a5a);
+    border-color:rgba(47,174,122,.7);
+  }
+  html[data-theme="light"] .btn.primary:hover { background:linear-gradient(135deg,#5fd6a4,#3aa876); }
 </style>
 <script>
 /* 首帧前套用上次选择的主题档位，避免明亮模式下先闪一下黑底。
@@ -348,19 +466,19 @@
   <header class="topbar">
     <div class="brand">
       <div class="logo">AES</div>
-      <div>
+      <div class="brand-main">
         <h1>AES Toolbox <span class="ver" title="当前版本">V1.0.0</span></h1>
         <p>ECB · CBC · OFB · CTR · CFB · GCM · GMAC · CCM · XTS · CMAC</p>
       </div>
     </div>
     <div class="top-actions">
       <span class="keybadge" id="keyBadge">AES-128</span>
-      <button class="btn ghost theme" id="btnTheme" title="主题：暗黑" data-mode="dark">
-        <span id="themeIcon"></span><span class="tx" id="themeText">暗黑</span>
-      </button>
       <!--@SELFTEST@BEGIN-->
       <button class="btn ghost" id="btnSelfTest">运行自检</button>
       <!--@SELFTEST@END-->
+      <button class="btn ghost theme" id="btnTheme" title="主题：暗黑" data-mode="dark">
+        <span id="themeIcon"></span><span class="tx" id="themeText">暗黑</span>
+      </button>
     </div>
   </header>
 
@@ -1769,5 +1887,62 @@
   /*@SELFTEST@END*/
 })();
 </script>
+
+<script>
+/* 与首页 index.html 同款三档主题控件：沿用各工具原有主题逻辑，仅替换外观。 */
+(function(){
+  var ORDER=['system','light','dark'];
+  var LABEL={system:'系统',light:'明亮',dark:'暗黑'};
+  var TITLE={system:'跟随系统',light:'明亮',dark:'暗黑'};
+  var SVG={
+    system:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="19" height="13" rx="2"/><path d="M8.5 20.5h7M12 16.5v4"/></svg>',
+    light:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.4M12 19.4v2.4M2.2 12h2.4M19.4 12h2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7"/></svg>',
+    dark:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.4A8.6 8.6 0 1 1 9.6 3.5a6.9 6.9 0 0 0 10.9 10.9z"/></svg>'
+  };
+  var st=document.createElement('style');
+  st.textContent="\n.fz-theme{--fz-bg:rgba(190,255,220,.07);--fz-line:rgba(210,255,230,.16);--fz-knob:rgba(190,255,220,.16);--fz-text:#eef7f1;--fz-dim:#9db5a7;--fz-strong:#ffffff;--fz-shadow:0 2px 10px rgba(0,0,0,.18);position:relative;display:grid;grid-template-columns:repeat(3,1fr);padding:4px;border-radius:999px;background:var(--fz-bg);border:1px solid var(--fz-line);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);transition:background .35s ease,border-color .35s ease;font-family:inherit}\nhtml[data-theme=\"light\"] .fz-theme{--fz-bg:rgba(255,255,255,.6);--fz-line:rgba(18,60,36,.12);--fz-knob:#ffffff;--fz-text:#1a2c22;--fz-dim:#5f7768;--fz-strong:#0d1c13;--fz-shadow:0 2px 10px rgba(25,90,55,.16)}\n.fz-theme .knob{position:absolute;top:4px;left:4px;width:calc((100% - 8px) / 3);height:calc(100% - 8px);border-radius:999px;background:var(--fz-knob);transform:translateX(calc(var(--i,0) * 100%));transition:transform .34s cubic-bezier(.22,.61,.36,1),background .35s ease;box-shadow:var(--fz-shadow);pointer-events:none}\n.fz-theme button{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 12px;border:0;border-radius:999px;background:none;color:var(--fz-dim);font:inherit;font-size:12px;line-height:1;cursor:pointer;transition:color .25s ease}\n.fz-theme button:hover{color:var(--fz-text)}\n.fz-theme button[aria-pressed=\"true\"]{color:var(--fz-strong)}\n.fz-theme button svg{width:14px;height:14px;flex:none}\n.fz-theme button:focus-visible{outline:2px solid rgba(79,201,148,.85);outline-offset:2px}\n@media(max-width:560px){.fz-theme button span{display:none}.fz-theme button{padding:8px 12px}}\n";
+  document.head.appendChild(st);
+
+  var old=document.querySelector("#btnTheme");
+  if(!old||!old.parentNode) return;
+  var box=document.createElement('div');
+  box.className='fz-theme';
+  box.setAttribute('role','group');
+  box.setAttribute('aria-label','主题切换');
+  
+  box.innerHTML='<span class="knob" aria-hidden="true"></span>'+ORDER.map(function(m){
+    return '<button type="button" data-mode="'+m+'" aria-pressed="false" title="'+TITLE[m]+'">'+SVG[m]+'<span>'+LABEL[m]+'</span></button>';
+  }).join('');
+  old.parentNode.insertBefore(box,old);
+  old.style.display='none';
+
+  function read(){
+    var m=(old.getAttribute('data-mode'));
+    if(m==='auto') m='system';
+    return ORDER.indexOf(m)>=0 ? m : 'system';
+  }
+  function activate(m){
+    var target=(m==='system'?'auto':m);var guard=0;while(old.getAttribute('data-mode')!==target && guard++<5){old.click();}
+    sync();
+  }
+  function sync(){
+    var m=read(), i=ORDER.indexOf(m);
+    box.style.setProperty('--i', i);
+    ORDER.forEach(function(x){
+      var b=box.querySelector('button[data-mode="'+x+'"]');
+      if(b) b.setAttribute('aria-pressed', x===m?'true':'false');
+    });
+  }
+  box.addEventListener('click',function(e){
+    var b=e.target.closest?e.target.closest('button[data-mode]'):null;
+    if(b) activate(b.getAttribute('data-mode'));
+  });
+  if(window.MutationObserver){
+    new MutationObserver(sync).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme','data-theme-pref','data-mode']});
+  }
+  sync();
+})();
+</script>
+
 </body>
 </html>

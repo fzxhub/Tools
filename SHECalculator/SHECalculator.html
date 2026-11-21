@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SHE 密钥灌装 M1–M5 完整计算过程（逐步展开）</title>
+<title>SHE密钥灌装计算</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='28%25' r='72%25'%3E%3Cstop offset='0' stop-color='%23bdf5d5'/%3E%3Cstop offset='45%25' stop-color='%234fd39a'/%3E%3Cstop offset='100%25' stop-color='%230f8a5a'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='13' fill='url(%23g)'/%3E%3Ccircle cx='11.5' cy='10.5' r='3.1' fill='%23ffffff' opacity='.55'/%3E%3C/svg%3E">
 <script>
 /* 主题：先把 data-theme 定下来，免得亮色系统里先闪一下黑底 */
 (function(){
@@ -60,6 +61,19 @@ button.primary:hover{background:var(--blue-bg3)}
 
 /* 主题切换 */
 .head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 0 6px}
+/* 标题前的 SHE 圆角矩形徽标：与 AESToolbox / UDSToolbox 同款 */
+.she-logo{
+  width:42px; height:42px; flex:none; border-radius:11px;
+  background:linear-gradient(145deg,#4fd39a,#2f9e68);
+  color:#fff; font:700 13px/42px ui-monospace,Consolas,monospace;
+  text-align:center; letter-spacing:.5px;
+  box-shadow:0 6px 22px -6px rgba(79,201,148,.6), inset 0 1px 0 rgba(255,255,255,.35);
+}
+html[data-theme="light"] .she-logo{
+  background:linear-gradient(145deg,#2fae7a,#1f8a5a);
+  box-shadow:0 6px 22px -6px rgba(47,174,122,.45), inset 0 1px 0 rgba(255,255,255,.6);
+}
+.head-brand{display:flex;align-items:center;gap:13px;min-width:0} /* 参考 AES：徽标与标题成组，避免被两端对齐拉开 */
 .head h1{margin:0}
 .themebar{display:flex;align-items:center;gap:9px}
 .themebar .tl{font-size:calc(11px * var(--fs));color:var(--faint);font-family:ui-monospace,Consolas,monospace}
@@ -183,15 +197,74 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
 /* 纯文本导出 */
 
 @media(max-width:900px){.g4,.g6{grid-template-columns:1fr 1fr}.lrow{grid-template-columns:18px 130px 1fr}.bytes{grid-template-columns:repeat(8,1fr)}.resmini{grid-template-columns:1fr}.flags{grid-template-columns:repeat(3,1fr)}}
+
+/* ================= CANUpdater 风格皮肤（仅配色 / 质感，不改布局） ================= */
+:root{
+  --bg:#06110c; --panel:rgba(255,255,255,.055); --sunken:rgba(0,0,0,.28);
+  --panel2:rgba(255,255,255,.04); --hover:rgba(255,255,255,.075);
+  --btn:rgba(255,255,255,.06); --btnh:rgba(255,255,255,.10);
+  --line:rgba(255,255,255,.11); --line2:rgba(255,255,255,.07);
+  --line3:rgba(255,255,255,.15); --line4:rgba(79,201,148,.38);
+  --tx:#f4f2f7; --tx-strong:#ffffff; --tx2:#ded8e4; --tx3:#b9b1c2; --tx4:#a79fb4;
+  --dim:#a79fb4; --dim2:#8e8499; --dim3:#7b7288; --faint:#6d6478;
+  --off:#5d5568; --off2:#544c60; --ghost:#443c4d; --iv:#8e8499;
+  --blue:#4fd39a; --blue2:#7fe0b2; --blue3:#bdf5d5; --blue-fg:#ddf7e8;
+  --blue-bg:rgba(79,201,148,.16); --blue-bg2:rgba(79,201,148,.09);
+  --blue-bd:rgba(79,201,148,.42); --blue-bg3:rgba(79,201,148,.24);
+  --grn:#4ad9a4; --grn2:#2ec4a6; --grn-bg:rgba(74,217,164,.10);
+  --grn-bd:rgba(74,217,164,.38); --grn-bg2:rgba(74,217,164,.14); --grn-dim:#7fae9f;
+  --amb:#ffc46b; --amb2:#ffb454; --amb-bd:rgba(255,196,107,.40);
+  --amb-bg:rgba(255,196,107,.10); --amb-bg2:rgba(255,196,107,.07);
+  --amb3:#ffd89b; --amb4:#a07a18;
+  --red:#ff7387; --red-bg:rgba(255,115,135,.12); --vio:#5fd6c4;
+}
+:root[data-theme="light"]{
+  --bg:#f3fbf6; --panel:rgba(255,255,255,.72); --sunken:rgba(255,255,255,.62);
+  --panel2:rgba(255,255,255,.58); --hover:rgba(255,255,255,.90);
+  --btn:rgba(255,255,255,.72); --btnh:rgba(255,255,255,.92);
+  --line:rgba(18,60,36,.12); --line2:rgba(18,60,36,.08);
+  --line3:rgba(18,60,36,.18); --line4:rgba(47,174,122,.40);
+  --tx:#2b1a25; --tx-strong:#150610; --tx2:#4a3a45; --tx3:#6d5b67; --tx4:#8e7d89;
+  --dim:#6d5b67; --dim2:#7b6b76; --dim3:#8e7d89; --faint:#9a8b96;
+  --off:#a89aa4; --off2:#b5a8b1; --ghost:#c9bec7; --iv:#8e7d89;
+  --blue:#2fae7a; --blue2:#c62f68; --blue3:#a32258; --blue-fg:#8f1a4a;
+  --blue-bg:rgba(47,174,122,.11); --blue-bg2:rgba(47,174,122,.06);
+  --blue-bd:rgba(47,174,122,.35); --blue-bg3:rgba(47,174,122,.17);
+  --grn:#128a63; --grn2:#0b8a66; --grn-bg:rgba(18,138,99,.10);
+  --grn-bd:rgba(18,138,99,.35); --grn-bg2:rgba(18,138,99,.13); --grn-dim:#2f8f74;
+  --amb:#a86200; --amb2:#8f5f08; --amb-bd:rgba(168,98,0,.40);
+  --amb-bg:rgba(168,98,0,.10); --amb-bg2:rgba(168,98,0,.07);
+  --amb3:#8a5a05; --amb4:#a9822e;
+  --red:#d62f4f; --red-bg:rgba(214,47,79,.10); --vio:#6b46d6;
+}
+body{
+  background:
+    radial-gradient(1100px 560px at 10% -8%, rgba(58,220,145,.30), transparent 62%),
+    radial-gradient(900px 500px at 94% 0%, rgba(45,190,185,.26), transparent 62%),
+    var(--bg);
+  background-attachment:fixed;
+}
+:root[data-theme="light"] body{
+  background:
+    radial-gradient(1100px 560px at 10% -8%, rgba(120,220,165,.42), transparent 62%),
+    radial-gradient(900px 500px at 94% 0%, rgba(150,215,255,.32), transparent 62%),
+    var(--bg);
+}
+.card{
+  -webkit-backdrop-filter:blur(18px) saturate(1.25);
+  backdrop-filter:blur(18px) saturate(1.25);
+}
 </style>
 </head>
 <body>
 <div class="wrap">
 
 <div class="head">
-  <h1>SHE 密钥灌装：M1–M5 完整计算过程</h1>
+  <div class="head-brand">
+    <div class="she-logo" aria-hidden="true">SHE</div>
+    <h1>SHE密钥灌装计算</h1>
+  </div>
   <div class="themebar">
-    <span class="tl">主题</span>
     <div class="seg" id="segTheme">
       <button type="button" data-mode="system">随系统</button>
       <button type="button" data-mode="light">明亮</button>
@@ -200,9 +273,7 @@ input:focus,select:focus{outline:none;border-color:var(--blue)}
   </div>
 </div>
 <div class="sub">
-  用一个真实向量把每一步算到底：<b>每次 AES 的输入输出、每次异或的三个操作数、每块明文的位布局</b>都摊开写；
-  标「展开」的地方可以继续钻到 AES 内部 11 轮的四步状态（SubBytes / ShiftRows / MixColumns / AddRoundKey）。
-  全部数值由页面现算。
+  SHE密钥灌装M1-M5详细计算架构与步骤展示
 </div>
 
 <!-- 参数 -->
@@ -893,5 +964,62 @@ window.__trace={runAll,kdfTrace,cmacTrace,cbcTrace,traceEncrypt,expandKey,kdfTra
   }
 })();
 </script>
+
+<script>
+/* 与首页 index.html 同款三档主题控件：沿用各工具原有主题逻辑，仅替换外观。 */
+(function(){
+  var ORDER=['system','light','dark'];
+  var LABEL={system:'系统',light:'明亮',dark:'暗黑'};
+  var TITLE={system:'跟随系统',light:'明亮',dark:'暗黑'};
+  var SVG={
+    system:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="19" height="13" rx="2"/><path d="M8.5 20.5h7M12 16.5v4"/></svg>',
+    light:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.4M12 19.4v2.4M2.2 12h2.4M19.4 12h2.4M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7"/></svg>',
+    dark:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.4A8.6 8.6 0 1 1 9.6 3.5a6.9 6.9 0 0 0 10.9 10.9z"/></svg>'
+  };
+  var st=document.createElement('style');
+  st.textContent="\n.fz-theme{--fz-bg:rgba(190,255,220,.07);--fz-line:rgba(210,255,230,.16);--fz-knob:rgba(190,255,220,.16);--fz-text:#eef7f1;--fz-dim:#9db5a7;--fz-strong:#ffffff;--fz-shadow:0 2px 10px rgba(0,0,0,.18);position:relative;display:grid;grid-template-columns:repeat(3,1fr);padding:4px;border-radius:999px;background:var(--fz-bg);border:1px solid var(--fz-line);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);transition:background .35s ease,border-color .35s ease;font-family:inherit}\nhtml[data-theme=\"light\"] .fz-theme{--fz-bg:rgba(255,255,255,.6);--fz-line:rgba(18,60,36,.12);--fz-knob:#ffffff;--fz-text:#1a2c22;--fz-dim:#5f7768;--fz-strong:#0d1c13;--fz-shadow:0 2px 10px rgba(25,90,55,.16)}\n.fz-theme .knob{position:absolute;top:4px;left:4px;width:calc((100% - 8px) / 3);height:calc(100% - 8px);border-radius:999px;background:var(--fz-knob);transform:translateX(calc(var(--i,0) * 100%));transition:transform .34s cubic-bezier(.22,.61,.36,1),background .35s ease;box-shadow:var(--fz-shadow);pointer-events:none}\n.fz-theme button{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 12px;border:0;border-radius:999px;background:none;color:var(--fz-dim);font:inherit;font-size:12px;line-height:1;cursor:pointer;transition:color .25s ease}\n.fz-theme button:hover{color:var(--fz-text)}\n.fz-theme button[aria-pressed=\"true\"]{color:var(--fz-strong)}\n.fz-theme button svg{width:14px;height:14px;flex:none}\n.fz-theme button:focus-visible{outline:2px solid rgba(79,201,148,.85);outline-offset:2px}\n@media(max-width:560px){.fz-theme button span{display:none}.fz-theme button{padding:8px 12px}}\n";
+  document.head.appendChild(st);
+
+  var old=document.querySelector("#segTheme");
+  if(!old||!old.parentNode) return;
+  var box=document.createElement('div');
+  box.className='fz-theme';
+  box.setAttribute('role','group');
+  box.setAttribute('aria-label','主题切换');
+  
+  box.innerHTML='<span class="knob" aria-hidden="true"></span>'+ORDER.map(function(m){
+    return '<button type="button" data-mode="'+m+'" aria-pressed="false" title="'+TITLE[m]+'">'+SVG[m]+'<span>'+LABEL[m]+'</span></button>';
+  }).join('');
+  old.parentNode.insertBefore(box,old);
+  old.style.display='none';
+
+  function read(){
+    var m=(document.documentElement.getAttribute('data-mode'));
+    if(m==='auto') m='system';
+    return ORDER.indexOf(m)>=0 ? m : 'system';
+  }
+  function activate(m){
+    var b=old.querySelector('button[data-mode="'+m+'"]');if(b) b.click();
+    sync();
+  }
+  function sync(){
+    var m=read(), i=ORDER.indexOf(m);
+    box.style.setProperty('--i', i);
+    ORDER.forEach(function(x){
+      var b=box.querySelector('button[data-mode="'+x+'"]');
+      if(b) b.setAttribute('aria-pressed', x===m?'true':'false');
+    });
+  }
+  box.addEventListener('click',function(e){
+    var b=e.target.closest?e.target.closest('button[data-mode]'):null;
+    if(b) activate(b.getAttribute('data-mode'));
+  });
+  if(window.MutationObserver){
+    new MutationObserver(sync).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme','data-theme-pref','data-mode']});
+  }
+  sync();
+})();
+</script>
+
 </body>
 </html>
