@@ -99,6 +99,7 @@ input[type=text]:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 
 .sig-item{display:flex;align-items:center;gap:7px;padding:3px 6px;border-radius:5px;font-size:12px;cursor:pointer}
 .sig-item:hover{background:var(--panel2)}
 .sig-item input{accent-color:var(--accent);width:14px;height:14px;cursor:pointer}
+.sig-item input[data-sig]:disabled{opacity:.5;cursor:not-allowed}
 .sig-item[draggable=true]{cursor:grab}
 .sig-item[draggable=true]:active{cursor:grabbing}
 .sig-item.drag-src{opacity:.5}
@@ -162,6 +163,8 @@ input[type=text]:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 
 .toolbar{display:flex;align-items:center;gap:8px;padding:10px 16px;flex:none;flex-wrap:wrap}
 .toolbar .grow{flex:1}
 .toolbar label{color:var(--fg2);font-size:12px}
+.chart-nav{display:inline-flex;gap:4px;flex:none;user-select:none}
+.chart-nav .btn.active{background:var(--sel);border-color:var(--accent);color:var(--fg)}
 
 /* 表格 */
 .table-wrap{flex:1;overflow:auto;margin:0 16px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel)}
@@ -1011,9 +1014,20 @@ tbody .sig-row>td{
             <button class="seg-btn" data-mode="merged">合并显示</button>
           </div>
           <label class="toggle-pill" id="normLabel" title="仅合并模式可用" style="opacity:.5"><input type="checkbox" id="normalize" disabled><span class="tg-track" aria-hidden="true"></span><span>归一化</span></label>
-          <button class="btn sm" id="clearSeries">清空曲线</button>
+          <button class="btn sm" id="clearSeries" title="同时清空回放报文与时序曲线中的信号">清空显示</button>
           <span class="cursor-cnt" id="cursorCnt"></span>
           <button class="btn sm" id="clearCursors" title="清除全部时间卡尺">清除卡尺</button>
+          <div class="seg" id="pointSeg" style="--i:1" title="离散=显示每个 CAN 报文数据点；平滑=连续折线">
+            <span class="knob" aria-hidden="true"></span>
+            <button class="seg-btn" data-mode="discrete">离散</button>
+            <button class="seg-btn active" data-mode="smooth">平滑</button>
+          </div>
+          <div class="chart-nav" role="group" aria-label="曲线缩放与平移">
+            <button class="btn sm" id="zoomInBtn" title="放大时间轴">＋ 放大</button>
+            <button class="btn sm" id="zoomOutBtn" title="缩小时间轴">－ 缩小</button>
+            <button class="btn sm" id="panLeftBtn" title="向左移动图形">← 左移</button>
+            <button class="btn sm" id="panRightBtn" title="向右移动图形">→ 右移</button>
+          </div>
         </div>
         <div class="chart-box" id="chartBox">
           <canvas id="chartCanvas"></canvas>
@@ -1117,7 +1131,7 @@ tbody .sig-row>td{
       <h4>3. 左侧信号树</h4>
       <ul>
         <li>搜索框支持按报文名、ID 或信号名过滤。</li>
-        <li>勾选信号可把它加入曲线；把信号从左侧拖到曲线区或回放区的固定显示区，也能添加。信号前面的颜色块可点击切换该信号的曲线与卡片颜色，色块扩大了点击热区，也可用 Tab 聚焦后按 Enter/空格切换。</li>
+        <li>在「回放报文」或「时序曲线」界面勾选信号，会同时显示到回放报文与时序曲线；取消勾选也会同步移除。「按帧解码」界面的勾选框不可点击。把信号从左侧拖到曲线区或回放区也能添加。信号前面的颜色块可点击切换曲线与卡片颜色，色块扩大了点击热区，也可用 Tab 聚焦后按 Enter/空格切换。</li>
         <li>侧栏底部的「导出 DBC」会保存当前会话（含新建/编辑信号）；「＋ 创建信号」可在当前会话中新增信号。</li>
       </ul>
 
@@ -1130,9 +1144,9 @@ tbody .sig-row>td{
 
       <h4>5. 时序曲线</h4>
       <ul>
-        <li>勾选或拖拽左侧信号即可添加曲线；每条曲线会显示单位、最小值、最大值和平均值。</li>
+        <li>勾选或拖拽左侧信号即可同时添加回放卡片与曲线；每条曲线会显示单位、最小值、最大值和平均值。</li>
         <li>「独立纵轴」让每个信号使用独立分带；「合并显示」把多个信号叠在同一坐标系；合并模式下可勾选「归一化」统一量纲。</li>
-        <li>滚轮缩放横轴，拖拽图形区平移；「清空曲线」移除全部曲线，「清除卡尺」移除时间标记。曲线上最多可放置两个时间卡尺。</li>
+        <li>右上角按钮可放大、缩小、左移、右移时间轴；左移/右移按住可持续平移，滚轮也可缩放横轴，拖拽图形区可平移；「离散 / 平滑」切换可显示或隐藏每个 CAN 报文对应的数据点；「清空显示」同时移除回放与曲线中的信号，「清除卡尺」移除时间标记。曲线上最多可放置两个时间卡尺。</li>
       </ul>
 
       <h4>6. 主题与数据说明</h4>
@@ -1163,6 +1177,7 @@ const S = {
   series:[], // {key,msg,sig,color,points,unit,min,max,avg,visible}
   sigColors:{}, // 信号自定义颜色覆盖 {key:color}
   axisMode:"independent", // independent=每信号独立纵轴(分带) / merged=合并共享纵轴
+  pointMode:"smooth", // smooth=连续折线 / discrete=显示每个 CAN 报文数据点
   cursors:[], // 时间卡尺，元素为时间(s)
   editCtx:null, // 当前编辑的信号 {msg,oldName}
   chartReady:false, // canvas 已初始化（主题切换时避免提前重绘）
@@ -1421,6 +1436,7 @@ function renderTree(){
     $("tree").querySelectorAll(".msg-head").forEach(x=>x.classList.toggle("active",x===h));
   });
   $("tree").querySelectorAll("input[data-sig]").forEach(cb=>cb.onchange=()=>toggleSeries(cb.dataset.sig,cb.checked));
+  syncSidebarCheckboxes();
   $("tree").querySelectorAll(".chip-color[data-color-key]").forEach(chip=>{
     const activate=e=>{e.preventDefault();e.stopPropagation();cycleSignalColor(chip.dataset.colorKey,chip);};
     chip.onclick=activate;
@@ -1630,12 +1646,18 @@ function activateTab(name){
   const t=TAB_LIST.find(x=>x.dataset.tab===name);
   if(t&&typeof t.onclick==="function")t.onclick();
 }
+let activeTabName=(TAB_LIST.find(t=>t.classList.contains("active"))||TAB_LIST[0]).dataset.tab||"table";
+document.body.dataset.tab=activeTabName;
 TAB_LIST.forEach(t=>t.onclick=()=>{
+  activeTabName=t.dataset.tab;
+  document.body.dataset.tab=activeTabName;
   syncTabControl(t);
   document.querySelectorAll(".tab-pane").forEach(p=>p.classList.toggle("active",p.id==="pane-"+t.dataset.tab));
-  if(t.dataset.tab==="chart"){requestAnimationFrame(drawChart);}
+  syncSidebarCheckboxes();
+  if(activeTabName==="chart"){requestAnimationFrame(drawChart);}
 });
 syncTabControl(TAB_LIST.find(t=>t.classList.contains("active"))||TAB_LIST[0]);
+syncSidebarCheckboxes();
 
 // ---------- 按帧解码 ----------
 const BASE_COLS=["#","时间 (s)","通道","ID","报文","DLC","数据"];
@@ -1714,21 +1736,77 @@ $("toggleExpand").onclick=()=>{
   updateToggleBtn();
 };
 
-// ---------- 曲线 ----------
-async function toggleSeries(key,on){
-  if(!on){S.series=S.series.filter(x=>x.key!==key);S.hasView=false;drawChart();renderLegend();return;}
-  if(S.series.some(x=>x.key===key))return;
-  const [msg,sig]=key.split("|");
-  const btn=$("loadBtn");
-  try{
-    const j=DbcLocal.series(msg,sig,6000);
-    if(!j.ok)throw new Error(j.error);
-    if(!j.count){toast("该信号无有效数据",true);const cb=$("tree").querySelector(`input[data-sig="${CSS.escape(key)}"]`);if(cb)cb.checked=false;return;}
-    S.series.push({key,msg,sig,color:colorFor(key),unit:j.unit,points:j.points,count:j.count,min:j.min,max:j.max,avg:j.avg,visible:true});
-    $("chartEmpty").style.display="none";
-    S.hasView=false;drawChart();renderLegend();
-  }catch(e){toast(e.message,true);}
+// ---------- 信号显示：勾选/拖拽同时同步到回放报文与时序曲线 ----------
+function setSignalCheckbox(key,on){
+  const tree=$("tree");
+  const cb=tree&&tree.querySelector(`input[data-sig="${CSS.escape(key)}"]`);
+  if(cb){cb.checked=on;cb.disabled=activeTabName==="table";}
 }
+function syncSidebarCheckboxes(){
+  const tree=$("tree");if(!tree)return;
+  const locked=activeTabName==="table";
+  tree.querySelectorAll("input[data-sig]").forEach(cb=>{
+    const key=cb.dataset.sig;
+    cb.checked=S.series.some(x=>x.key===key);
+    cb.disabled=locked;
+    const item=cb.closest(".sig-item");
+    if(item)item.title=locked
+      ? "按帧解码界面不能勾选；切到「回放报文」或「时序曲线」后可勾选，勾选会同时同步到这两个界面"
+      : "勾选=同时显示到「回放报文」与「时序曲线」；取消勾选=同时移除。拖拽整行到回放区=固定显示整帧报文";
+  });
+}
+function downsampleForWatch(points,max){
+  if(!points||points.length<=max)return points||[];
+  const out=[],step=points.length/max;
+  for(let i=0;i<max;i++)out.push(points[Math.floor(i*step)]);
+  out.push(points[points.length-1]);
+  return out;
+}
+function cleanupSignalState(key){
+  delete S.play.watchVals[key];delete S.play.watchSeries[key];
+  if(S.play.chartMode)delete S.play.chartMode[key];
+}
+function removeSignalView(key,silent){
+  const had=S.series.some(x=>x.key===key)||S.play.watch.includes(key);
+  S.series=S.series.filter(x=>x.key!==key);
+  S.play.watch=S.play.watch.filter(k=>k!==key);
+  cleanupSignalState(key);
+  setSignalCheckbox(key,false);
+  S.hasView=false;drawChart();renderLegend();
+  if(!afterWatchRemove())fetchAround(true);
+  if(!silent&&had)toast("已移除显示："+key.split("|")[1]);
+  return had;
+}
+async function addSignalView(key,silent){
+  if(!S.sid){if(!silent)toast("请先加载数据",true);return false;}
+  const inChart=S.series.some(x=>x.key===key), inWatch=S.play.watch.includes(key);
+  if(inChart&&inWatch){if(!silent)toast("该信号已显示");return true;}
+  const [msg,sig]=key.split("|");
+  if(!findSig(msg,sig)){if(!silent)toast("信号不存在",true);return false;}
+  let j=null;
+  if(!inChart){
+    try{
+      j=DbcLocal.series(msg,sig,6000);
+      if(!j.ok)throw new Error(j.error||"读取信号数据失败");
+      if(!j.count){toast("该信号无有效数据",true);setSignalCheckbox(key,false);return false;}
+    }catch(e){if(!silent)toast(e.message,true);setSignalCheckbox(key,false);return false;}
+    S.series.push({key,msg,sig,color:colorFor(key),unit:j.unit,points:j.points,count:j.count,min:j.min,max:j.max,avg:j.avg,visible:true});
+  }
+  if(!inWatch){
+    S.play.suppressDefault=false;
+    S.play.watch.push(key);
+    S.play.watchVals[key]=undefined;
+    const pts=j?j.points:((S.series.find(x=>x.key===key)||{}).points||[]);
+    S.play.watchSeries[key]=downsampleForWatch(pts,600);
+  }
+  setSignalCheckbox(key,true);
+  $("chartEmpty").style.display="none";
+  S.hasView=false;drawChart();renderLegend();
+  renderWatchBar();fetchAround(true);
+  if(!silent)toast("已同步显示到回放与曲线："+sig);
+  return true;
+}
+async function toggleSeries(key,on){return on?addSignalView(key,false):removeSignalView(key,false);}
 // 拖拽信号到图形区绘制曲线（与回放区共用左侧信号项的 dragstart data，key=msg|sig）
 (function(){
   const zone=$("chartBox");
@@ -1738,15 +1816,21 @@ async function toggleSeries(key,on){
     e.preventDefault();e.stopPropagation();zone.classList.remove("drag-over");
     const key=e.dataTransfer.getData("text/plain");
     if(!key||!key.includes("|"))return;
-    if(S.series.some(x=>x.key===key)){toast("该信号已在曲线中");return;}
-    await toggleSeries(key,true);
-    // 按实际结果同步左侧勾选（无数据时 toggleSeries 不会加入 series）
+    if(S.series.some(x=>x.key===key)&&S.play.watch.includes(key)){toast("该信号已显示");return;}
+    const ok=await addSignalView(key,true);
     const cb=$("tree").querySelector(`input[data-sig="${CSS.escape(key)}"]`);
-    if(cb)cb.checked=S.series.some(x=>x.key===key);
+    if(cb)cb.checked=ok;
   });
 })();
 function renderLegend(){/* 图例栏已移除以腾出绘图空间；曲线的添加/移除由左侧信号勾选控制 */}
-$("clearSeries").onclick=()=>{S.series=[];S.hasView=false;renderTree();renderLegend();drawChart();$("chartEmpty").style.display="flex";};
+$("clearSeries").onclick=()=>{
+  const keys=S.series.map(s=>s.key);
+  keys.forEach(k=>cleanupSignalState(k));
+  S.series=[];S.play.watch=S.play.watch.filter(k=>!keys.includes(k));
+  S.hasView=false;syncSidebarCheckboxes();renderLegend();drawChart();$("chartEmpty").style.display="flex";
+  if(!afterWatchRemove())fetchAround(true);
+  toast("已清空回放与曲线中的信号");
+};
 // 时间卡尺信息面板：显示各卡尺时间，两个及以上自动求差值
 function renderCursorInfo(){
   const box=$("cursorInfo"),cnt=$("cursorCnt"),n=S.cursors.length;
@@ -1770,12 +1854,31 @@ $("axisSeg").querySelectorAll(".seg-btn").forEach(b=>b.onclick=()=>{
   $("normLabel").style.opacity=merged?"1":".5";
   S.hasView=false;drawChart();
 });
+// 离散 / 平滑：离散时在折线上标出每个 CAN 报文对应的数据点
+$("pointSeg").querySelectorAll(".seg-btn").forEach(b=>b.onclick=()=>{
+  S.pointMode=b.dataset.mode;
+  $("pointSeg").querySelectorAll(".seg-btn").forEach(x=>x.classList.toggle("active",x===b));
+  $("pointSeg").style.setProperty("--i",S.pointMode==="smooth"?1:0);
+  drawChart();
+});
 
 const cv=$("chartCanvas"),ctx=cv.getContext("2d");
 S.chartReady=true;
 let hoverX=null;
 function fitCanvas(){const r=cv.parentElement.getBoundingClientRect();const d=window.devicePixelRatio||1;cv.width=r.width*d;cv.height=r.height*d;ctx.setTransform(d,0,0,d,0,0);return{w:r.width,h:r.height};}
 function visibleSeries(){return S.series.filter(s=>s.visible&&s.points.length);}
+function drawDiscretePoints(points,X,Y,L,pw,top,bottom,color,norm,s){
+  if(S.pointMode!=="discrete")return;
+  ctx.fillStyle=color;ctx.strokeStyle=cssVar("--panel");ctx.lineWidth=1;
+  const useNorm=norm&&s&&isFinite(s.min)&&isFinite(s.max)&&s.max!==s.min;
+  for(const p of points){
+    let v=p[1];
+    if(useNorm)v=(v-s.min)/(s.max-s.min)*100;
+    const x=X(p[0]);if(x<L||x>L+pw)continue;
+    const y=Y(v);if(y<top-3||y>bottom+3)continue;
+    ctx.beginPath();ctx.arc(x,y,3.2,0,Math.PI*2);ctx.fill();ctx.stroke();
+  }
+}
 function chartRange(){
   if(S.hasView)return S.view;
   let x0=Infinity,x1=-Infinity;
@@ -1836,6 +1939,7 @@ function drawChart(){
         if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);
       }
       ctx.stroke();
+      drawDiscretePoints(s.points,X,Y,L,pw,top,bot,s.color,false,s);
     });
     // X 轴刻度只在最底部画一次
     ctx.fillStyle=C.axis;ctx.font="11px Consolas";ctx.textAlign="center";ctx.textBaseline="top";
@@ -1873,6 +1977,7 @@ function drawChart(){
         if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);
       }
       ctx.stroke();
+      drawDiscretePoints(s.points,X,Y,L,pw,T,T+ph,s.color,norm,s);
     }
   }
   // 时间卡尺：竖线 + 时间标签；两个及以上画区间阴影并标注 Δt
@@ -2020,6 +2125,39 @@ window.onmouseup=e=>{
   }
   drag=null;
 };
+function zoomChart(f){
+  if(!visibleSeries().length)return toast("请先显示信号",true);
+  const R=chartRange(),mid=(R.x0+R.x1)/2,span=(R.x1-R.x0)*f;
+  S.view={x0:mid-span/2,x1:mid+span/2,y0:R.y0,y1:R.y1};S.hasView=true;drawChart();
+}
+function panChart(dir,step){
+  if(!visibleSeries().length)return toast("请先显示信号",true);
+  const R=chartRange(),d=(R.x1-R.x0)*dir*(step||.15);
+  S.view={x0:R.x0+d,x1:R.x1+d,y0:R.y0,y1:R.y1};S.hasView=true;drawChart();
+}
+let panDelayTimer=null,panRepeatTimer=null,panBtn=null;
+function stopPan(){
+  if(panDelayTimer){clearTimeout(panDelayTimer);panDelayTimer=null;}
+  if(panRepeatTimer){clearInterval(panRepeatTimer);panRepeatTimer=null;}
+  if(panBtn){panBtn.classList.remove("active");panBtn=null;}
+}
+function startPan(dir,btn){
+  stopPan();
+  panBtn=btn;btn.classList.add("active");
+  panChart(dir,.08);
+  panDelayTimer=setTimeout(()=>{
+    panRepeatTimer=setInterval(()=>panChart(dir,.025),40);
+  },280);
+}
+$("zoomInBtn").onclick=()=>zoomChart(.8);
+$("zoomOutBtn").onclick=()=>zoomChart(1.25);
+$("panLeftBtn").addEventListener("pointerdown",e=>{if(e.button!==0)return;e.preventDefault();startPan(-1,e.currentTarget);});
+$("panRightBtn").addEventListener("pointerdown",e=>{if(e.button!==0)return;e.preventDefault();startPan(1,e.currentTarget);});
+["panLeftBtn","panRightBtn"].forEach(id=>$(id).addEventListener("pointerleave",e=>{if(e.buttons)stopPan();}));
+$("panLeftBtn").addEventListener("click",e=>{if(e.detail===0)panChart(-1);});
+$("panRightBtn").addEventListener("click",e=>{if(e.detail===0)panChart(1);});
+window.addEventListener("pointerup",stopPan);
+window.addEventListener("blur",stopPan);
 window.addEventListener("resize",()=>{if($("pane-chart").classList.contains("active"))drawChart();});
 
 // ---------- 回放 ----------
@@ -2063,21 +2201,7 @@ function addMsgWatch(msg){
   if(def)def.signals.forEach(sg=>loadWatchSeries(msg+"|"+sg.name));
   toast("已固定显示报文："+msg);
 }
-function addWatch(key){
-  if(!S.sid)return toast("请先加载数据",true);
-  if(S.play.watch.includes(key))return toast("该信号已在固定显示中");
-  S.play.suppressDefault=false;
-  const [msg,sig]=key.split("|");
-  if(!findSig(msg,sig))return toast("信号不存在",true);
-  S.play.watch.push(key);
-  S.play.watchVals[key]=undefined;
-  renderWatchBar();
-  // 无条件拉取播放头附近的帧：即使从未播放过（curFrame 为空）也要立即渲染卡片
-  fetchAround(true);
-  // 异步拉取该信号时序，供卡片内迷你折线图使用
-  loadWatchSeries(key);
-  toast("已固定显示："+sig);
-}
+function addWatch(key){return addSignalView(key,false);}
 async function loadWatchSeries(key){
   if(S.play.watchSeries[key])return; // 已缓存
   const [msg,sig]=key.split("|");
@@ -2114,9 +2238,7 @@ $("liveGrid").addEventListener("click",e=>{
     return;
   }
   const key=x.dataset.rm;
-  S.play.watch=S.play.watch.filter(k=>k!==key);
-  delete S.play.watchVals[key];delete S.play.watchSeries[key];if(S.play.chartMode)delete S.play.chartMode[key];
-  if(!afterWatchRemove() && S.play.curFrame)renderLive(S.play.curFrame);
+  removeSignalView(key,false);
 });
 // 删除固定项后：若已无任何固定信号/报文，清空回放区并抑制默认帧信号视图
 function afterWatchRemove(){
