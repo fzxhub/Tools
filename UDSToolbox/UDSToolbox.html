@@ -418,12 +418,18 @@ table.fd td:last-child{font-family:var(--mono); font-size:12.5px; word-break:bre
 /* ---------- file import ---------- */
 .dropzone{
   border:1.5px dashed var(--line2); border-radius:9px; padding:26px 16px; text-align:center;
-  cursor:pointer; transition:.15s; background:var(--bg2);
+  cursor:pointer; transition:.15s; background:var(--bg2); position:relative;
 }
 .dropzone:hover, .dropzone.over{border-color:var(--acc); background:rgba(var(--acc-rgb),0.06)}
 .dropzone b{display:block; font-size:13.5px; color:var(--txt); margin-bottom:4px}
 .dropzone span{display:block; font-size:12.5px; color:var(--txt3)}
 .dropzone em{display:block; font-size:11.5px; color:var(--txt3); font-style:normal; margin-top:9px; font-family:var(--mono)}
+/* 平板：file input 作为透明覆盖层直接接收点击（iOS 对 display:none 的 input.click() 支持差） */
+@media (pointer:coarse){
+  #file-input{display:block; position:absolute; inset:0; width:100%; height:100%; opacity:.01; z-index:3; margin:0; cursor:pointer}
+  .dropzone{touch-action:manipulation}
+  .dropzone b,.dropzone span,.dropzone em{pointer-events:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none}
+}
 .file-info{margin-top:10px; font-size:12.2px; color:var(--txt2); line-height:1.95; font-family:var(--mono); word-break:break-word}
 .file-info b{color:var(--acc); font-weight:600}
 .file-info .bad{color:var(--neg)}
@@ -827,8 +833,8 @@ header,nav.tabs{
           </div>
           <textarea id="in-box" spellcheck="false" style="display:none" placeholder="每行一帧，十六进制字节，空格/连字符可省略&#10;例如：&#10;02 10 03&#10;06 50 03 00 32 01 F4"></textarea>
           <div id="file-zone">
-            <input type="file" id="file-input" accept=".asc,.blf,.trc,.txt,.log" hidden>
             <div class="dropzone" id="dropzone">
+              <input type="file" id="file-input" accept=".asc,.blf,.trc,.txt,.log" hidden>
               <b>拖拽日志文件到此处</b>
               <span>或点击选择文件</span>
               <em>.asc &nbsp; .blf &nbsp; .trc &nbsp;（含 CAN FD）</em>
@@ -3977,20 +3983,41 @@ function init(){
   // 默认落在「文件导入」：诊断日志基本都是导文件，粘贴只是备选
   setMode('file');
 
-  // 文件导入
+  // 文件导入（平板兼容：触屏移除 accept 过滤、缓存 File、校验扩展名，PC 行为不变）
   const fileInput = document.getElementById('file-input');
   const dz = document.getElementById('dropzone');
-  dz.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', () => {
-    if(fileInput.files && fileInput.files[0]) loadLogFile(fileInput.files[0]);
-    fileInput.value = '';
+  const fileInfo = document.getElementById('file-info');
+  const COARSE = !window.matchMedia || matchMedia('(pointer:coarse)').matches;
+  const LOG_EXTS = ['.asc','.blf','.trc','.txt','.log'];
+  // iPadOS 文件 App 对扩展名 accept 支持差，会把目标文件置灰无法选中
+  if(COARSE) fileInput.removeAttribute('accept');
+  let pickedLog = null;
+  const logExtOK = f => LOG_EXTS.some(x => f.name.toLowerCase().endsWith(x));
+  const badExt = () => { fileInfo.innerHTML = '<span class="bad">文件类型不符，需 ' + LOG_EXTS.join(' / ') + '</span>'; };
+  dz.addEventListener('click', e => {
+    if(e.target === fileInput) return; // 触屏下 input 覆盖层已直接接收点击
+    fileInput.click();
   });
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files && fileInput.files[0];
+    if(f){
+      if(!logExtOK(f)){ badExt(); fileInput.value = ''; return; }
+      pickedLog = f;
+      loadLogFile(f);
+    }
+    fileInput.value = ''; // 允许重复选同一文件
+  });
+  // 防止拖入文件被 input 原生行为重复处理，统一由 dz 的 drop 加载
+  ['dragover','drop'].forEach(ev => fileInput.addEventListener(ev, e => e.preventDefault()));
   ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
   ['dragleave'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('over'); }));
   dz.addEventListener('drop', e => {
     e.preventDefault(); dz.classList.remove('over');
     const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if(f) loadLogFile(f);
+    if(!f) return;
+    if(!logExtOK(f)){ badExt(); return; }
+    pickedLog = f;
+    loadLogFile(f);
   });
 
   // ID 配置：三个 ID 完全独立，改哪个只影响哪个

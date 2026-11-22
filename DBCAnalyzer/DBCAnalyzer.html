@@ -927,6 +927,10 @@ tbody .sig-row>td{
   .table-pager .btn,.sidebar-actions .btn{position:relative}
   /* SVG 不支持伪元素，用 padding+负 margin 扩大迷你图热区 */
   .mini-chart{padding:8px; margin:-8px; box-sizing:content-box}
+  /* 文件选择：文字层不拦截触摸，确保点击落到 file input 上 */
+  .file-label{min-height:60px}
+  .file-label input[type=file]{opacity:.01; z-index:2}
+  .file-label .ft,.file-label .fn,.file-label .file-ok{pointer-events:none}
   /* P0-1 触屏拖拽 ghost */
   .drag-ghost{
     position:fixed; z-index:9999; pointer-events:none; left:0; top:0;
@@ -1322,11 +1326,43 @@ applyTheme(_initTheme);
 })();
 
 // ---------- 加载 ----------
-$("dbcInput").onchange=e=>{const f=e.target.files[0];if(f){$("dbcName").textContent=f.name;$("dbcOk").classList.remove("on");}};
-$("logInput").onchange=e=>{const f=e.target.files[0];if(f){$("logName").textContent=f.name;$("logOk").classList.remove("on");}};
-// 文件框支持直接拖入：把拖入的 File 写入对应 input.files 并触发 change
-function enableFileDrop(dropId,inputId,nameId,accepted){
+// 平板/触屏：iPadOS 文件 App 对 .dbc/.asc/.blf/.trc 这类扩展名的 accept 过滤支持差，
+// 会把目标文件置灰无法选择。触屏下移除 accept，改由 JS 按扩展名校验。
+const COARSE=!window.matchMedia||matchMedia("(pointer:coarse)").matches;
+if(COARSE){["dbcInput","logInput"].forEach(id=>$(id).removeAttribute("accept"));}
+// 选中的 File 缓存到变量：iOS 上清空 input.value 以支持重复选同一文件，且不依赖 input.files
+const picked={dbc:null,log:null};
+function extOK(f,exts){return !f||exts.some(x=>f.name.toLowerCase().endsWith(x));}
+$("dbcInput").onchange=e=>{
+  const f=e.target.files[0];
+  if(f){
+    if(!extOK(f,[".dbc"])){toast("DBC 文件需 .dbc 格式",true);e.target.value="";return;}
+    picked.dbc=f;$("dbcName").textContent=f.name;$("dbcOk").classList.remove("on");
+  }
+  e.target.value=""; // 允许再次选择同一文件
+};
+$("logInput").onchange=e=>{
+  const f=e.target.files[0];
+  if(f){
+    if(!extOK(f,[".asc",".blf",".trc"])){toast("日志需 .asc / .blf / .trc 格式",true);e.target.value="";return;}
+    picked.log=f;$("logName").textContent=f.name;$("logOk").classList.remove("on");
+  }
+  e.target.value="";
+};
+// 点击文字区域也能打开文件选择器（部分平板对层叠在文字上的透明 input 响应不佳）
+["dbcDrop","logDrop"].forEach(id=>{
+  const label=$(id),input=label.querySelector("input[type=file]");
+  if(!input)return;
+  label.addEventListener("click",e=>{
+    if(e.target===input)return;
+    e.preventDefault();
+    try{input.click();}catch(_){}
+  });
+});
+// 文件框支持直接拖入：缓存 File（不依赖 input.files 赋值，兼容 iOS）
+function enableFileDrop(dropId,inputId,nameId,okId,accepted){
   const zone=$(dropId),input=$(inputId);
+  const key=inputId==="dbcInput"?"dbc":"log";
   zone.addEventListener("dragover",e=>{e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect="copy";zone.classList.add("drag-over");});
   zone.addEventListener("dragleave",e=>{if(!zone.contains(e.relatedTarget))zone.classList.remove("drag-over");});
   zone.addEventListener("drop",e=>{
@@ -1335,14 +1371,13 @@ function enableFileDrop(dropId,inputId,nameId,accepted){
     if(accepted&&!accepted.some(x=>f.name.toLowerCase().endsWith(x))){
       toast("文件类型不符，需 "+accepted.join(" / "),true);return;
     }
-    const dt=new DataTransfer();dt.items.add(f);
-    input.files=dt.files;
-    input.dispatchEvent(new Event("change",{bubbles:true}));
-    $(nameId).textContent=f.name;
+    picked[key]=f;$(nameId).textContent=f.name;
+    const ok=$(okId);if(ok)ok.classList.remove("on");
+    try{const dt=new DataTransfer();dt.items.add(f);input.files=dt.files;}catch(_){}
   });
 }
-enableFileDrop("dbcDrop","dbcInput","dbcName",[".dbc"]);
-enableFileDrop("logDrop","logInput","logName",[".asc",".blf",".trc"]);
+enableFileDrop("dbcDrop","dbcInput","dbcName","dbcOk",[".dbc"]);
+enableFileDrop("logDrop","logInput","logName","logOk",[".asc",".blf",".trc"]);
 async function loadFiles(dbc, log, btn){
   if(!log){toast("请选择日志文件（DBC 可不选）",true);return false;}
   const oldText=btn?btn.textContent:"";
@@ -1364,7 +1399,7 @@ async function loadFiles(dbc, log, btn){
   }catch(e){toast("解析失败："+e.message,true);return false;}
   finally{if(btn){btn.disabled=false;btn.textContent=oldText;}}
 }
-$("loadBtn").onclick=()=>loadFiles($("dbcInput").files[0], $("logInput").files[0], $("loadBtn"));
+$("loadBtn").onclick=()=>loadFiles(picked.dbc, picked.log, $("loadBtn"));
 
 // ---------- 确认框 / 帮助弹窗 / Demo 加载 ----------
 let confirmAction=null;
