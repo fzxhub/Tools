@@ -163,7 +163,21 @@ input[type=text]:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 
 .toolbar{display:flex;align-items:center;gap:8px;padding:10px 16px;flex:none;flex-wrap:wrap}
 .toolbar .grow{flex:1}
 .toolbar label{color:var(--fg2);font-size:12px}
-.chart-nav{display:inline-flex;gap:4px;flex:none;user-select:none}
+.chart-nav{
+  position:absolute; right:36px; bottom:12px; z-index:6;
+  display:inline-flex; gap:4px; user-select:none;
+  padding:5px; border-radius:999px;
+  background:color-mix(in srgb,var(--panel2) 88%,transparent);
+  border:1px solid var(--border);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  box-shadow:0 4px 16px rgba(0,0,0,.18);
+}
+.chart-nav .btn{
+  width:32px; height:32px; min-width:32px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  border-radius:999px;
+}
+.chart-nav .btn svg{width:16px;height:16px;display:block;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .chart-nav .btn.active{background:var(--sel);border-color:var(--accent);color:var(--fg)}
 
 /* 表格 */
@@ -248,7 +262,12 @@ input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
 .card-x:hover{color:var(--red);background:var(--danger-hover)}
 .sig-card .n{padding-right:18px}
 .live-grid{display:grid;grid-template-columns:var(--play-cols,repeat(auto-fill,160px));align-items:start;gap:10px;padding:12px 24px 68px}
-.sig-card{min-width:0;max-width:none;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:9px 11px}
+.sig-card{min-width:0;max-width:none;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:9px 11px;transition:border-color .18s ease,box-shadow .18s ease,background .18s ease}
+.sig-card.highlight{
+  border-color:var(--sig-color,var(--accent));
+  background:color-mix(in srgb,var(--sig-color,var(--accent)) 12%,var(--panel2));
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--sig-color,var(--accent)) 35%,transparent),0 6px 20px color-mix(in srgb,var(--sig-color,var(--accent)) 18%,transparent);
+}
 .sig-card .n{font-size:11px;color:var(--fg2);display:flex;align-items:center;gap:8px}
 .sig-card .vv{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--fg);margin-top:3px;display:flex;align-items:center;gap:5px}
 .sig-card .vv small{font-size:11px;color:var(--fg3);font-weight:400;flex:none}
@@ -667,7 +686,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{
 /* 下拉选项在暗黑/明亮主题下都保持清晰可读 */
 select option{background:var(--tip-bg); color:var(--fg)}
 
-/* 侧栏底部悬浮操作条：导出 DBC / 创建信号 */
+/* 侧栏底部悬浮操作条：导出 DBC / 创建信号 / 清空选择 */
 .tree-wrap{padding-bottom:70px}
 .sidebar-actions{
   position:absolute; left:12px; right:12px; bottom:12px; z-index:5;
@@ -931,9 +950,10 @@ tbody .sig-row>td{
         <input type="text" class="tree-search" id="treeSearch" placeholder="搜索报文名 / ID / 信号名…" style="margin-bottom:0">
       </div>
       <div class="tree-wrap" id="tree"></div>
-      <div class="sidebar-actions" role="group" aria-label="DBC 操作">
+      <div class="sidebar-actions" role="group" aria-label="DBC 与显示操作">
         <button class="btn sm" id="exportDbcBtn" title="导出当前会话的 DBC（含自定义/编辑后的信号）">导出 DBC</button>
         <button class="btn sm" id="addSignalBtn" title="创建 DBC 中不存在的信号">＋ 创建信号</button>
+        <button class="btn sm" id="clearSeries" title="同时清空回放报文与时序曲线中的信号">清空选择</button>
       </div>
     </aside>
     <div class="sidebar-resizer" id="sidebarResizer" title="拖动调整宽度，双击恢复默认"></div>
@@ -1014,19 +1034,10 @@ tbody .sig-row>td{
             <button class="seg-btn" data-mode="merged">合并显示</button>
           </div>
           <label class="toggle-pill" id="normLabel" title="仅合并模式可用" style="opacity:.5"><input type="checkbox" id="normalize" disabled><span class="tg-track" aria-hidden="true"></span><span>归一化</span></label>
-          <button class="btn sm" id="clearSeries" title="同时清空回放报文与时序曲线中的信号">清空显示</button>
-          <span class="cursor-cnt" id="cursorCnt"></span>
-          <button class="btn sm" id="clearCursors" title="清除全部时间卡尺">清除卡尺</button>
           <div class="seg" id="pointSeg" style="--i:1" title="离散=显示每个 CAN 报文数据点；平滑=连续折线">
             <span class="knob" aria-hidden="true"></span>
             <button class="seg-btn" data-mode="discrete">离散</button>
             <button class="seg-btn active" data-mode="smooth">平滑</button>
-          </div>
-          <div class="chart-nav" role="group" aria-label="曲线缩放与平移">
-            <button class="btn sm" id="zoomInBtn" title="放大时间轴">＋ 放大</button>
-            <button class="btn sm" id="zoomOutBtn" title="缩小时间轴">－ 缩小</button>
-            <button class="btn sm" id="panLeftBtn" title="向左移动图形">← 左移</button>
-            <button class="btn sm" id="panRightBtn" title="向右移动图形">→ 右移</button>
           </div>
         </div>
         <div class="chart-box" id="chartBox">
@@ -1034,6 +1045,14 @@ tbody .sig-row>td{
           <div class="tip" id="tip"></div>
           <div class="cursor-info" id="cursorInfo" style="display:none"></div>
           <div class="chart-empty" id="chartEmpty"><div style="font-size:34px;opacity:.4">📈</div><div>拖拽左侧信号到此处绘制曲线</div><div class="hint">独立纵轴：每信号一条刻度带 · 合并显示：共享纵轴对比</div></div>
+          <div class="chart-nav" role="group" aria-label="曲线缩放与平移">
+            <button class="btn sm" id="zoomInBtn" aria-label="放大时间轴" title="放大时间轴"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.4 15.4 21 21M10.5 7.5v6M7.5 10.5h6"/></svg></button>
+            <button class="btn sm" id="zoomOutBtn" aria-label="缩小时间轴" title="缩小时间轴"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.4 15.4 21 21M7.5 10.5h6"/></svg></button>
+            <button class="btn sm" id="panLeftBtn" aria-label="向左移动图形" title="向左移动（按住持续移动）"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
+            <button class="btn sm" id="panRightBtn" aria-label="向右移动图形" title="向右移动（按住持续移动）"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+            <button class="btn sm" id="fitViewBtn" aria-label="回到初始曲线显示" title="回到初始显示（图像铺满组件）"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg></button>
+            <button class="btn sm" id="clearCursors" aria-label="清除全部时间卡尺" title="清除全部时间卡尺"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6"/></svg></button>
+          </div>
         </div>
       </div>
     </div>
@@ -1132,21 +1151,21 @@ tbody .sig-row>td{
       <ul>
         <li>搜索框支持按报文名、ID 或信号名过滤。</li>
         <li>在「回放报文」或「时序曲线」界面勾选信号，会同时显示到回放报文与时序曲线；取消勾选也会同步移除。「按帧解码」界面的勾选框不可点击。把信号从左侧拖到曲线区或回放区也能添加。信号前面的颜色块可点击切换曲线与卡片颜色，色块扩大了点击热区，也可用 Tab 聚焦后按 Enter/空格切换。</li>
-        <li>侧栏底部的「导出 DBC」会保存当前会话（含新建/编辑信号）；「＋ 创建信号」可在当前会话中新增信号。</li>
+        <li>侧栏底部的「导出 DBC」会保存当前会话（含新建/编辑信号）；「＋ 创建信号」可在当前会话中新增信号；「清空选择」可同时清空回放报文与时序曲线中已选择的信号。</li>
       </ul>
 
       <h4>4. 回放报文</h4>
       <ul>
         <li>「停止」暂停并回到 0 秒；「播放/暂停」控制回放；速率下拉提供 0.05x ~ 16x 共 13 档。</li>
         <li>单个信号与整帧报文可同时拖入回放区固定显示：整帧报文块独占一行，独立信号卡片在其后横向排列。报文块按「时间 / ID / 报文名 / 原始数据」报文头 + 该帧全部信号卡片展示，块内信号卡片与独立信号卡片样式、功能相同，但不带删除 ×。悬浮控制条上的「列数」下拉可选择自动列数或固定 2~10 列，两类信号卡片同步按列对齐。拖动时间轴可定位到任意时刻；独立信号卡片与报文块右上角的 × 可分别移除。</li>
-        <li>固定显示的信号卡片（含报文块内的信号卡片）右下角迷你图表均可点击切换「折线图 / 仪表盘 / 横向柱状图」三种外观：折线图只绘制到当前播放进度，后续线段随回放逐步显示；仪表盘与柱状图按当前值在最小~最大区间的位置展示。</li>
+        <li>固定显示的信号卡片（含报文块内的信号卡片）右下角迷你图表均可点击切换「折线图 / 仪表盘 / 横向柱状图」三种外观：折线图只绘制到当前播放进度，后续线段随回放逐步显示；仪表盘与柱状图按当前值在最小~最大区间的位置展示。双击信号卡片的边框或留白可切换高亮模式，用信号颜色加粗描边与光晕提高注意力；再次双击取消。</li>
       </ul>
 
       <h4>5. 时序曲线</h4>
       <ul>
         <li>勾选或拖拽左侧信号即可同时添加回放卡片与曲线；每条曲线会显示单位、最小值、最大值和平均值。</li>
         <li>「独立纵轴」让每个信号使用独立分带；「合并显示」把多个信号叠在同一坐标系；合并模式下可勾选「归一化」统一量纲。</li>
-        <li>右上角按钮可放大、缩小、左移、右移时间轴；左移/右移按住可持续平移，滚轮也可缩放横轴，拖拽图形区可平移；「离散 / 平滑」切换可显示或隐藏每个 CAN 报文对应的数据点；「清空显示」同时移除回放与曲线中的信号，「清除卡尺」移除时间标记。曲线上最多可放置两个时间卡尺。</li>
+        <li>图像区右下角悬浮的放大镜 / 箭头 / 适应 / 清除图标按钮可放大、缩小、左移、右移时间轴、回到初始显示并清除时间卡尺；左移/右移按住可持续平移，滚轮也可缩放横轴，拖拽图形区可平移；「离散 / 平滑」切换可显示或隐藏每个 CAN 报文对应的数据点，离散模式下双击放置卡尺会自动吸附到附近最近的离散数据点；侧栏底部的「清空选择」同时移除回放与曲线中的信号。双击曲线可放置时间卡尺，最多两个，卡尺时间仍在图像右上角信息面板显示。</li>
       </ul>
 
       <h4>6. 主题与数据说明</h4>
@@ -1182,7 +1201,7 @@ const S = {
   editCtx:null, // 当前编辑的信号 {msg,oldName}
   chartReady:false, // canvas 已初始化（主题切换时避免提前重绘）
   view:{x0:0,x1:1,y0:0,y1:1}, hasView:false,
-  play:{t:0,playing:false,speed:.5,last:0,lastReq:0,curFrame:null,curSigVals:{},watch:[],msgWatch:[],watchVals:{},watchSeries:{},chartMode:{},suppressDefault:false}
+  play:{t:0,playing:false,speed:.5,last:0,lastReq:0,curFrame:null,curSigVals:{},watch:[],msgWatch:[],watchVals:{},watchSeries:{},chartMode:{},highlight:{},suppressDefault:false}
 };
 
 function toast(msg,err){const t=$("toast");t.textContent=msg;t.className="toast"+(err?" err":"");t.style.display="block";clearTimeout(t._t);t._t=setTimeout(()=>t.style.display="none",2600);}
@@ -1288,7 +1307,7 @@ async function loadFiles(dbc, log, btn){
     $("dbcName").textContent=j.meta.dbc||"auto_generated.dbc";
     $("logName").textContent=j.meta.log||log.name;
     S.series=[];S.sigColors={};S.hasView=false;S.cursors=[];renderCursorInfo();S.play.t=0;S.play.playing=false;
-    S.play.watch=[];S.play.msgWatch=[];S.play.watchVals={};S.play.watchSeries={};S.play.chartMode={};S.play.suppressDefault=false;S.play.watchFrames={};
+    S.play.watch=[];S.play.msgWatch=[];S.play.watchVals={};S.play.watchSeries={};S.play.chartMode={};S.play.highlight={};S.play.suppressDefault=false;S.play.watchFrames={};
     $("playBtn").textContent="▶";$("speed").value="0.5";S.play.speed=.5;
     $("dbcOk").classList.add("on");$("logOk").classList.add("on");
     buildUI();renderTable();renderWatchBar();
@@ -1535,6 +1554,9 @@ function renameSignalKey(oldKey,newKey){
   if(S.play.chartMode&&Object.prototype.hasOwnProperty.call(S.play.chartMode,oldKey)){
     S.play.chartMode[newKey]=S.play.chartMode[oldKey];delete S.play.chartMode[oldKey];
   }
+  if(S.play.highlight&&Object.prototype.hasOwnProperty.call(S.play.highlight,oldKey)){
+    S.play.highlight[newKey]=S.play.highlight[oldKey];delete S.play.highlight[oldKey];
+  }
 }
 $("addSignalBtn").onclick=openCreateSignal;
 $("csMsg").onchange=toggleCustomMsg;
@@ -1543,7 +1565,7 @@ function removeSignalRefs(msg,name){
   const key=msg+"|"+name;
   S.series=S.series.filter(x=>x.key!==key);
   S.play.watch=S.play.watch.filter(k=>k!==key);
-  delete S.play.watchVals[key];delete S.play.watchSeries[key];if(S.play.chartMode)delete S.play.chartMode[key];if(S.sigColors)delete S.sigColors[key];
+  delete S.play.watchVals[key];delete S.play.watchSeries[key];if(S.play.chartMode)delete S.play.chartMode[key];if(S.play.highlight)delete S.play.highlight[key];if(S.sigColors)delete S.sigColors[key];
 }
 $("sigDelete").onclick=async()=>{
   if(!S.editCtx)return;
@@ -1765,6 +1787,7 @@ function downsampleForWatch(points,max){
 function cleanupSignalState(key){
   delete S.play.watchVals[key];delete S.play.watchSeries[key];
   if(S.play.chartMode)delete S.play.chartMode[key];
+  if(S.play.highlight)delete S.play.highlight[key];
 }
 function removeSignalView(key,silent){
   const had=S.series.some(x=>x.key===key)||S.play.watch.includes(key);
@@ -1834,10 +1857,10 @@ $("clearSeries").onclick=()=>{
 // 时间卡尺信息面板：显示各卡尺时间，两个及以上自动求差值
 function renderCursorInfo(){
   const box=$("cursorInfo"),cnt=$("cursorCnt"),n=S.cursors.length;
-  cnt.textContent=n?("卡尺 "+n):"";
+  if(cnt)cnt.textContent=n?("卡尺 "+n):"";
   if(!n){box.style.display="none";return;}
   const cs=S.cursors.slice().sort((a,b)=>a-b);
-  let html='<div class="ci-h">时间卡尺 · 左键放置（最多 2 个）</div>';
+  let html='<div class="ci-h">时间卡尺 · 双击曲线放置（最多 2 个）</div>';
   cs.forEach((t,i)=>{html+=`<div class="ci-r"><span>t${i+1}</span><b>${t.toFixed(6)} s</b></div>`;});
   if(n>=2)html+=`<div class="ci-d">Δt = ${(cs[cs.length-1]-cs[0]).toFixed(6)} s</div>`;
   box.innerHTML=html;box.style.display="block";
@@ -2115,15 +2138,31 @@ cv.onmousedown=e=>{
   if(e.button!==0){drag=null;return;}
   drag={x:e.clientX,y:e.clientY,R:chartRange(),moved:false};
 };
-window.onmouseup=e=>{
-  if(drag&&!drag.moved&&e.button===0&&e.target===cv&&S.series.length){
-    const t=cursorTimeAt(e.clientX,e.clientY,drag.R);
-    if(t!==null){
-      if(S.cursors.length>=2)toast("最多只能放置两个卡尺，请先清除卡尺");
-      else {S.cursors.push(t);renderCursorInfo();drawChart();}
-    }
+window.onmouseup=()=>{drag=null;};
+// 离散模式：把双击位置吸附到附近最近的离散数据点（所有可见信号中取最近）
+function snapCursorTime(t){
+  if(S.pointMode!=="discrete")return t;
+  const vis=visibleSeries();if(!vis.length)return t;
+  const R=chartRange(),r=cv.getBoundingClientRect(),L=64,pw=r.width-L-16;
+  if(!(pw>0)||!(R.x1>R.x0))return t;
+  const clickX=L+(t-R.x0)/(R.x1-R.x0)*pw;
+  let best=null,bd=Infinity;
+  for(const s of vis){
+    const p=nearestPoint(s.points,t);if(!p)continue;
+    const x=L+(p[0]-R.x0)/(R.x1-R.x0)*pw;
+    const d=Math.abs(x-clickX);
+    if(d<bd){bd=d;best=p[0];}
   }
-  drag=null;
+  return best!==null&&bd<=30?best:t;
+}
+// 双击曲线放置时间卡尺（单击仅用于拖拽平移，不再放置卡尺）
+cv.ondblclick=e=>{
+  if(!S.series.length)return;
+  const raw=cursorTimeAt(e.clientX,e.clientY,chartRange());
+  if(raw===null)return;
+  const t=snapCursorTime(raw);
+  if(S.cursors.length>=2)toast("最多只能放置两个卡尺，请先清除卡尺");
+  else {S.cursors.push(t);renderCursorInfo();drawChart();}
 };
 function zoomChart(f){
   if(!visibleSeries().length)return toast("请先显示信号",true);
@@ -2151,6 +2190,10 @@ function startPan(dir,btn){
 }
 $("zoomInBtn").onclick=()=>zoomChart(.8);
 $("zoomOutBtn").onclick=()=>zoomChart(1.25);
+$("fitViewBtn").onclick=()=>{
+  if(!visibleSeries().length)return toast("请先显示信号",true);
+  S.hasView=false;S.view={x0:0,x1:1,y0:0,y1:1};drawChart();
+};
 $("panLeftBtn").addEventListener("pointerdown",e=>{if(e.button!==0)return;e.preventDefault();startPan(-1,e.currentTarget);});
 $("panRightBtn").addEventListener("pointerdown",e=>{if(e.button!==0)return;e.preventDefault();startPan(1,e.currentTarget);});
 ["panLeftBtn","panRightBtn"].forEach(id=>$(id).addEventListener("pointerleave",e=>{if(e.buttons)stopPan();}));
@@ -2232,13 +2275,24 @@ $("liveGrid").addEventListener("click",e=>{
     if(def)def.signals.forEach(sg=>{
       const key=msg+"|"+sg.name;
       if(S.play.watch.includes(key))return;
-      delete S.play.watchVals[key];delete S.play.watchSeries[key];if(S.play.chartMode)delete S.play.chartMode[key];
+      delete S.play.watchVals[key];delete S.play.watchSeries[key];if(S.play.chartMode)delete S.play.chartMode[key];if(S.play.highlight)delete S.play.highlight[key];
     });
     if(!afterWatchRemove())fetchAround(true);
     return;
   }
   const key=x.dataset.rm;
   removeSignalView(key,false);
+});
+// 双击卡片边框/留白切换高亮模式；点击内部文字或迷你图不会触发
+$("liveGrid").addEventListener("dblclick",e=>{
+  const card=e.target.closest(".sig-card[data-hlkey]");
+  if(!card||e.target!==card)return;
+  const key=card.dataset.hlkey;
+  if(!S.play.highlight)S.play.highlight={};
+  const on=!!S.play.highlight[key];
+  if(on)delete S.play.highlight[key];else S.play.highlight[key]=true;
+  card.classList.toggle("highlight",!on);
+  toast(on?"已取消高亮":"已高亮该信号");
 });
 // 删除固定项后：若已无任何固定信号/报文，清空回放区并抑制默认帧信号视图
 function afterWatchRemove(){
@@ -2301,7 +2355,9 @@ function renderLive(f){
     const names=Object.keys(f.sigs);
     $("liveGrid").innerHTML=names.length?names.map(n=>{
       const sg=findSig(f.msg,n);const unit=sg?sg.unit:"";
-      return `<div class="sig-card ${changed.has(n)?'changed':''}">
+      const key=(f.msg||"")+"|"+n,color=colorFor(key);
+      const hl=S.play.highlight&&S.play.highlight[key]?"highlight":"";
+      return `<div class="sig-card ${changed.has(n)?'changed':''} ${hl}" data-hlkey="${esc(key)}" title="双击边框切换高亮" style="--sig-color:${color}">
         <div class="n"><span class="sig-name" title="${esc(n)}"><span class="sig-dot"></span><span class="sig-label">${esc(n)}</span></span><span class="wc-msg">${sg&&sg.choices&&sg.choices[String(f.sigs[n][1])]?esc(sg.choices[String(f.sigs[n][1])]):''}</span></div>
         <div class="vv">${fmt(f.sigs[n][0])} <small>${esc(unit)}</small></div></div>`;}).join(""):'<div style="color:var(--fg3);padding:20px">该帧无已定义信号</div>';
     S.play.curSigVals={};for(const n in f.sigs)S.play.curSigVals[n]=f.sigs[n][0];
@@ -2323,8 +2379,10 @@ function renderLive(f){
       const pair=wf.sigs[n], v=pair[0], raw=pair[1], key=msg+"|"+n;
       if(v!==null){next[key]=v;if(prev[key]!==undefined&&prev[key]!==v)changed.add(key);}
       const choice=(sg&&sg.choices&&raw!==null)?(sg.choices[String(raw)]||""):"";
-      const spark=miniChartSvg(key,S.play.watchSeries[key],colorFor(key),S.play.t,v);
-      return `<div class="sig-card ${changed.has(key)?'changed':''}">
+      const color=colorFor(key);
+      const spark=miniChartSvg(key,S.play.watchSeries[key],color,S.play.t,v);
+      const hl=S.play.highlight&&S.play.highlight[key]?"highlight":"";
+      return `<div class="sig-card ${changed.has(key)?'changed':''} ${hl}" data-hlkey="${esc(key)}" title="双击边框切换高亮" style="--sig-color:${color}">
         <div class="n"><span class="sig-name" title="${esc(n)}"><span class="sig-dot"></span><span class="sig-label">${esc(n)}</span></span><span class="wc-msg" title="${esc(msg)}">${esc(msg)}${choice?' · '+esc(choice):''}</span></div>
         <div class="vv"><span>${v===null?'<span style="color:var(--fg3)">—</span>':fmt(v)}</span><small>${esc(unit)}</small>${spark}</div></div>`;
     }).join(""):'<div style="color:var(--fg3);padding:16px">该报文无已定义信号</div>';
@@ -2351,8 +2409,10 @@ function renderLive(f){
       const sg=findSig(msg,sig);
       const unit=sg?sg.unit:"";
       const choice=(sg&&sg.choices&&raw!==null)?(sg.choices[String(raw)]||""):"";
-      const spark=miniChartSvg(key,S.play.watchSeries[key],colorFor(key),S.play.t,v);
-      parts.push(`<div class="sig-card ${changed.has(key)?'changed':''}">
+      const color=colorFor(key);
+      const spark=miniChartSvg(key,S.play.watchSeries[key],color,S.play.t,v);
+      const hl=S.play.highlight&&S.play.highlight[key]?"highlight":"";
+      parts.push(`<div class="sig-card ${changed.has(key)?'changed':''} ${hl}" data-hlkey="${esc(key)}" title="双击边框切换高亮" style="--sig-color:${color}">
         <span class="card-x" data-rm="${esc(key)}" title="移除该信号">×</span>
         <div class="n"><span class="sig-name" title="${esc(sig)}"><span class="sig-dot"></span><span class="sig-label">${esc(sig)}</span></span><span class="wc-msg" title="${esc(msg)}">${esc(msg)}${choice?' · '+esc(choice):''}</span></div>
         <div class="vv"><span>${v===null?'<span style="color:var(--fg3)">—</span>':fmt(v)}</span><small>${esc(unit)}</small>${spark}</div></div>`);
