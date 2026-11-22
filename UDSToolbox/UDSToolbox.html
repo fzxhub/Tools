@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>UDS 诊断查询工具箱 V1.0.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='28%25' r='72%25'%3E%3Cstop offset='0' stop-color='%23bdf5d5'/%3E%3Cstop offset='45%25' stop-color='%234fd39a'/%3E%3Cstop offset='100%25' stop-color='%230f8a5a'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='13' fill='url(%23g)'/%3E%3Ccircle cx='11.5' cy='10.5' r='3.1' fill='%23ffffff' opacity='.55'/%3E%3C/svg%3E">
 <style>
@@ -735,6 +735,27 @@ header,nav.tabs{
   -webkit-backdrop-filter:blur(18px) saturate(1.25);
   backdrop-filter:blur(18px) saturate(1.25);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.05), var(--shadow);
+}
+
+/* 平板触控：长按 CAN ID 行弹出「填入槽位」菜单（PC 端拖拽/键盘不变） */
+.id-slot-menu{
+  position:fixed; z-index:9999; display:none; flex-direction:column; gap:2px;
+  min-width:132px; padding:6px; border-radius:12px;
+  background:var(--panel); border:1px solid var(--line);
+  box-shadow:0 16px 40px -16px rgba(0,0,0,.8);
+  -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+}
+.id-slot-menu.show{display:flex}
+.id-slot-menu .sm-t{font-size:11px; color:var(--txt3); padding:3px 9px 5px}
+.id-slot-menu button{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:9px 10px; min-height:40px; border:1px solid transparent; border-radius:8px;
+  background:transparent; color:var(--txt); font-size:12.5px; cursor:pointer; text-align:left;
+}
+.id-slot-menu button:hover,.id-slot-menu button:active{background:rgba(var(--acc-rgb),0.12); border-color:rgba(var(--acc-rgb),0.35)}
+.id-slot-menu button b{font-family:var(--mono); color:var(--acc); font-weight:600}
+@media (pointer:coarse){
+  .idrow{touch-action:pan-y; -webkit-touch-callout:none}
 }
 </style>
 <script>
@@ -4088,6 +4109,54 @@ function init(){
     e.preventDefault();
     applyId(row.dataset.id, slot);
   });
+  /* 平板触控：长按 ID 行弹出槽位选择菜单；PC 端鼠标拖拽/键盘 1/2/3 完全不变 */
+  (function(){
+    const menu=document.createElement('div');
+    menu.className='id-slot-menu';
+    menu.innerHTML='<div class="sm-t">填入 0x<span data-hex></span></div>'
+      +'<button type="button" data-slot="phys">物理 ID <b>1</b></button>'
+      +'<button type="button" data-slot="func">功能 ID <b>2</b></button>'
+      +'<button type="button" data-slot="resp">响应 ID <b>3</b></button>';
+    document.body.appendChild(menu);
+    let press=null, currentHex='';
+    const hide=()=>menu.classList.remove('show');
+    menu.addEventListener('click',e=>{
+      const b=e.target.closest('button[data-slot]');
+      if(b){applyId(currentHex,b.dataset.slot);hide();}
+    });
+    outArea.addEventListener('pointerdown',e=>{
+      if(e.pointerType==='mouse')return;
+      const row=e.target.closest&&e.target.closest('.idrow');
+      if(!row)return;
+      hide();
+      press={id:e.pointerId,x:e.clientX,y:e.clientY,hex:row.dataset.id,row};
+      press.timer=setTimeout(()=>{
+        if(!press||press.moved)return;
+        currentHex=press.hex;
+        menu.querySelector('[data-hex]').textContent=currentHex;
+        const r=press.row.getBoundingClientRect();
+        menu.style.left=Math.min(window.innerWidth-150, Math.max(8,r.left))+'px';
+        menu.style.top=Math.min(window.innerHeight-170, Math.max(8,r.bottom-6))+'px';
+        menu.classList.add('show');
+        press=null;
+      },480);
+    },true);
+    ['pointermove','pointerup','pointercancel'].forEach(ev=>{
+      outArea.addEventListener(ev,e=>{
+        if(!press||e.pointerId!==press.id)return;
+        if(ev==='pointermove'){
+          if(Math.abs(e.clientX-press.x)<10&&Math.abs(e.clientY-press.y)<10)return;
+          press.moved=true;
+        }
+        if(press.timer)clearTimeout(press.timer);
+        press=null;
+      },true);
+    });
+    document.addEventListener('pointerdown',e=>{
+      if(!menu.classList.contains('show'))return;
+      if(!e.target.closest('.id-slot-menu'))hide();
+    },true);
+  })();
   // Alt+N 跳到下一条负响应
   document.addEventListener('keydown', e => {
     if(e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'n' || e.key === 'N')){

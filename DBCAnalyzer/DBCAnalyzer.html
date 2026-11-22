@@ -125,7 +125,7 @@ input[type=text]:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 
 .chip-color:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 /* 创建信号弹窗 */
 .modal-mask{position:fixed;inset:0;background:#0009;z-index:50;display:none;align-items:center;justify-content:center}
-.modal{width:660px;max-width:94vw;max-height:90vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:10px;box-shadow:0 20px 60px #000b}
+.modal{width:660px;max-width:94vw;max-height:90vh;max-height:90dvh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:10px;box-shadow:0 20px 60px #000b}
 .modal h3{margin:0;padding:14px 18px;border-bottom:1px solid var(--border);font-size:15px}
 .modal .mb{padding:14px 18px}
 .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 14px}
@@ -167,7 +167,8 @@ input[type=text]:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 
 .toolbar label{color:var(--fg2);font-size:12px}
 .chart-nav{
   position:absolute; right:36px; bottom:12px; z-index:6;
-  display:inline-flex; gap:4px; user-select:none;
+  display:inline-flex; gap:4px;
+  user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
   padding:5px; border-radius:999px;
   background:color-mix(in srgb,var(--panel2) 88%,transparent);
   border:1px solid var(--border);
@@ -179,7 +180,8 @@ input[type=text]:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 
   display:flex; align-items:center; justify-content:center;
   border-radius:999px;
 }
-.chart-nav .btn svg{width:16px;height:16px;display:block;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.chart-nav *{user-select:none; -webkit-user-select:none; -webkit-touch-callout:none}
+.chart-nav .btn svg{width:16px;height:16px;display:block;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
 .chart-nav .btn.active{background:var(--sel);border-color:var(--accent);color:var(--fg)}
 
 /* 表格 */
@@ -897,6 +899,47 @@ tbody .sig-row>td{
   .sig-exp-eq{flex:1 1 100%}
 }
 
+
+/* ================= 平板触控优化（仅触屏设备生效，PC 端行为完全不变） ================= */
+/* 拖拽源允许纵向滚动、横向手势交给 JS（对鼠标无影响） */
+.sig-item[data-dragkey],.msg-head[data-head]{touch-action:pan-y}
+
+/* P3-11 滚动容器惯性滚动 */
+.table-wrap,.live-frame,.tree-wrap,.modal,.sidebar,.live-grid{-webkit-overflow-scrolling:touch}
+@media (pointer:coarse){
+  /* P2-9 全局禁止长按选中/系统菜单：交互控件不选中，结果文本仍可选 */
+  button,.btn,.tab,.icon-btn,.seg-btn,.sig-item,.msg-head,.sig-card,.card-x,.chip-color,
+  .msg-watch-head,.chart-nav,.table-pager,.play-controls,.sidebar-actions,.ov-strip,
+  .cursor-info,.tip,.hint,label,select{touch-action:manipulation; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none}
+  #chartCanvas{touch-action:none}
+  .sidebar-resizer{touch-action:none}
+  /* P1-4 扩大触控热区（不改变视觉尺寸，仅扩展可点击范围） */
+  .chart-nav .btn::after,.icon-btn::after,.seg-btn::after,
+  .table-pager .btn::after,.sidebar-actions .btn::after{
+    content:""; position:absolute; left:50%; top:50%; width:44px; height:44px;
+    transform:translate(-50%,-50%); border-radius:999px;
+  }
+  .sig-edit::after,.card-x::after{
+    content:""; position:absolute; left:50%; top:50%; width:30px; height:30px;
+    transform:translate(-50%,-50%); border-radius:999px;
+  }
+  .chart-nav .btn,.icon-btn,.sig-edit,.card-x,.seg-btn,
+  .table-pager .btn,.sidebar-actions .btn{position:relative}
+  /* SVG 不支持伪元素，用 padding+负 margin 扩大迷你图热区 */
+  .mini-chart{padding:8px; margin:-8px; box-sizing:content-box}
+  /* P0-1 触屏拖拽 ghost */
+  .drag-ghost{
+    position:fixed; z-index:9999; pointer-events:none; left:0; top:0;
+    transform:translate(-50%,-50%); padding:8px 14px; border-radius:999px;
+    background:var(--accent2); color:#fff; font-size:12px; font-weight:600;
+    box-shadow:0 10px 30px -8px rgba(0,0,0,.6); white-space:nowrap; max-width:70vw; overflow:hidden; text-overflow:ellipsis;
+  }
+  .drag-ghost.touch-drag{opacity:.95}
+  /* 触屏可点击提示：可放卡尺/高亮的长按手势 */
+  .touch-hint{position:fixed;z-index:9998;left:50%;bottom:76px;transform:translateX(-50%);
+    background:var(--tip-bg);border:1px solid var(--switch-line);border-radius:999px;
+    padding:8px 16px;font-size:12px;color:var(--fg);box-shadow:0 8px 24px #0007;pointer-events:none}
+}
 </style>
 </head>
 <body>
@@ -1245,34 +1288,37 @@ const _themeMql=window.matchMedia("(prefers-color-scheme: light)");
 let _initTheme="dark";try{_initTheme=localStorage.getItem("dbcToolTheme")||"dark";}catch(e){}
 applyTheme(_initTheme);
 
-// ---------- 左侧栏宽度可拖拽 ----------
+// ---------- 左侧栏宽度可拖拽（鼠标 + 触屏共用一套逻辑） ----------
 (function(){
   const rz=$("sidebarResizer"),side=document.querySelector(".sidebar");
   const clamp=w=>Math.max(200,Math.min(620,w));
   let startX=0,startW=0,dragging=false;
   let w=290;try{w=+localStorage.getItem("sidebarWidth")||290;}catch(e){}
   side.style.width=clamp(w)+"px";
-  rz.onmousedown=e=>{
-    if(e.button!==0)return;
+  function begin(e){
     e.preventDefault();dragging=true;startX=e.clientX;startW=side.getBoundingClientRect().width;
     rz.classList.add("dragging");document.body.style.cursor="col-resize";document.body.style.userSelect="none";
-  };
-  rz.ondblclick=()=>{
-    side.style.width="290px";
-    try{localStorage.setItem("sidebarWidth","290");}catch(e){}
-    if(S.chartReady)drawChart();
-  };
-  window.addEventListener("mousemove",e=>{
-    if(!dragging)return;
-    side.style.width=clamp(startW+e.clientX-startX)+"px";
-  });
-  window.addEventListener("mouseup",()=>{
+  }
+  function move(e){if(!dragging)return;side.style.width=clamp(startW+e.clientX-startX)+"px";}
+  function end(){
     if(!dragging)return;
     dragging=false;rz.classList.remove("dragging");
     document.body.style.cursor="";document.body.style.userSelect="";
     try{localStorage.setItem("sidebarWidth",String(Math.round(side.getBoundingClientRect().width)));}catch(e){}
     if(S.chartReady)drawChart();
-  });
+  }
+  rz.onmousedown=e=>{if(e.button===0)begin(e);};// PC 原行为
+  rz.addEventListener("pointerdown",e=>{if(e.pointerType!=="mouse"&&e.button===0)begin(e);});// 触屏
+  window.addEventListener("mousemove",move);
+  window.addEventListener("mouseup",end);
+  window.addEventListener("pointermove",e=>{if(e.pointerType!=="mouse")move(e);});
+  window.addEventListener("pointerup",e=>{if(e.pointerType!=="mouse")end();});
+  window.addEventListener("pointercancel",e=>{if(e.pointerType!=="mouse")end();});
+  rz.ondblclick=()=>{
+    side.style.width="290px";
+    try{localStorage.setItem("sidebarWidth","290");}catch(e){}
+    if(S.chartReady)drawChart();
+  };
 })();
 
 // ---------- 加载 ----------
@@ -2158,14 +2204,24 @@ function snapCursorTime(t){
   return best!==null&&bd<=30?best:t;
 }
 // 双击曲线放置时间卡尺（单击仅用于拖拽平移，不再放置卡尺）
-cv.ondblclick=e=>{
+cv.ondblclick=e=>placeCursorAt(e.clientX,e.clientY);
+function placeCursorAt(clientX,clientY){
   if(!S.series.length)return;
-  const raw=cursorTimeAt(e.clientX,e.clientY,chartRange());
+  const raw=cursorTimeAt(clientX,clientY,chartRange());
   if(raw===null)return;
   const t=snapCursorTime(raw);
   if(S.cursors.length>=2)toast("最多只能放置两个卡尺，请先清除卡尺");
   else {S.cursors.push(t);renderCursorInfo();drawChart();}
-};
+}
+// 触屏点按显示数值提示（复用 PC hover 的 showTip）
+function showTipAt(clientX,clientY){
+  if(!S.series.length)return;
+  const R=chartRange(),r=cv.getBoundingClientRect(),L=64,pw=r.width-L-16;
+  const x=clientX-r.left;
+  if(x<L||x>L+pw)return;
+  hoverX=x;
+  showTip(R.x0+(x-L)/pw*(R.x1-R.x0));
+}
 function zoomChart(f){
   if(!visibleSeries().length)return toast("请先显示信号",true);
   const R=chartRange(),mid=(R.x0+R.x1)/2,span=(R.x1-R.x0)*f;
@@ -2289,13 +2345,15 @@ $("liveGrid").addEventListener("click",e=>{
 $("liveGrid").addEventListener("dblclick",e=>{
   const card=e.target.closest(".sig-card[data-hlkey]");
   if(!card||e.target!==card)return;
-  const key=card.dataset.hlkey;
+  toggleCardHighlight(card.dataset.hlkey,card);
+});
+function toggleCardHighlight(key,card){
   if(!S.play.highlight)S.play.highlight={};
   const on=!!S.play.highlight[key];
   if(on)delete S.play.highlight[key];else S.play.highlight[key]=true;
   card.classList.toggle("highlight",!on);
   toast(on?"已取消高亮":"已高亮该信号");
-});
+}
 // 删除固定项后：若已无任何固定信号/报文，清空回放区并抑制默认帧信号视图
 function afterWatchRemove(){
   renderWatchBar();
@@ -2425,6 +2483,158 @@ function renderLive(f){
   S.play.curFrame=f;
 }
 function findSig(msg,sig){if(!S.meta||!msg)return null;const m=S.meta.messages.find(x=>x.name===msg);return m?m.signals.find(s=>s.name===sig):null;}
+
+// ================= 平板触控增强（仅 pointerType!=="mouse" 生效，PC 鼠标行为完全不变） =================
+(function(){
+  const isTouch=e=>e.pointerType&&e.pointerType!=="mouse";
+  const coarse=!window.matchMedia||matchMedia("(pointer:coarse)").matches;
+
+  // ---------- P0-1 拖拽：信号/报文 -> 回放区 / 曲线区 ----------
+  let ds=null, suppressClick=false;
+  function zoneAt(x,y){
+    const el=document.elementFromPoint(x,y);
+    if(!el)return null;
+    if(el.closest("#liveFrame"))return "live";
+    if(el.closest("#chartBox"))return "chart";
+    return null;
+  }
+  function markZone(zone){
+    ["liveFrame","chartBox"].forEach(id=>{
+      const el=$(id);if(el)el.classList.toggle("drag-over",id===zone);
+    });
+  }
+  function clearDrag(){
+    if(ds){
+      if(ds.ghost)ds.ghost.remove();
+      if(ds.src)ds.src.classList.remove("drag-src");
+      ds=null;
+    }
+    markZone(null);
+  }
+  function startDrag(){
+    if(!ds||ds.active)return;
+    ds.active=true;
+    const g=document.createElement("div");
+    g.className="drag-ghost touch-drag";
+    g.textContent=ds.label;
+    document.body.appendChild(g);
+    ds.ghost=g;
+    ds.src.classList.add("drag-src");
+    moveGhost(ds.cx,ds.cy);
+  }
+  function moveGhost(x,y){
+    if(!ds||!ds.ghost)return;
+    ds.ghost.style.left=x+"px";ds.ghost.style.top=y+"px";
+    markZone(zoneAt(x,y));
+  }
+  document.addEventListener("pointerdown",e=>{
+    if(!isTouch(e)||e.button!==0)return;
+    const t=e.target;
+    if(!t||!t.closest)return;
+    // 这些控件保留原生点击，不触发拖拽
+    if(t.closest("input,button,a,.chip-color,.sig-edit,.card-x,.mini-chart"))return;
+    const item=t.closest(".sig-item[data-dragkey]")||t.closest(".msg-head[data-head]");
+    if(!item)return;
+    const key=item.dataset.dragkey||("msg:"+item.dataset.head);
+    const label=item.dataset.dragkey?item.dataset.dragkey.split("|")[1]:item.dataset.head;
+    ds={src:item,key,label,id:e.pointerId,sx:e.clientX,sy:e.clientY,cx:e.clientX,cy:e.clientY,active:false,ghost:null};
+    ds.timer=setTimeout(()=>{if(ds&&!ds.active&&!ds.cancelled)startDrag();},320);
+  },true);
+  document.addEventListener("pointermove",e=>{
+    if(!ds||e.pointerId!==ds.id)return;
+    ds.cx=e.clientX;ds.cy=e.clientY;
+    if(!ds.active){
+      const dx=e.clientX-ds.sx,dy=e.clientY-ds.sy;
+      if(Math.abs(dy)>14&&Math.abs(dy)>Math.abs(dx)){ // 纵向滚动，放弃拖拽
+        if(ds.timer){clearTimeout(ds.timer);ds.timer=null;}
+        clearDrag();return;
+      }
+      if(Math.abs(dx)>12&&Math.abs(dx)>=Math.abs(dy))startDrag();
+      else return;
+    }
+    e.preventDefault();
+    moveGhost(e.clientX,e.clientY);
+  },{passive:false,capture:true});
+  function finishDrag(e,cancel){
+    if(!ds||e.pointerId!==ds.id)return;
+    const d=ds;
+    if(d.timer){clearTimeout(d.timer);d.timer=null;}
+    if(!d.active){clearDrag();return;}
+    const zone=cancel?null:zoneAt(e.clientX,e.clientY);
+    clearDrag();
+    suppressClick=true;setTimeout(()=>{suppressClick=false;},400);
+    if(zone==="live"){
+      if(d.key.startsWith("msg:"))addMsgWatch(d.key.slice(4));
+      else if(d.key.includes("|"))addWatch(d.key);
+    }else if(zone==="chart"&&!d.key.startsWith("msg:")&&d.key.includes("|")){
+      addSignalView(d.key,true).then(ok=>{
+        const cb=$("tree").querySelector(`input[data-sig="${CSS.escape(d.key)}"]`);
+        if(cb)cb.checked=ok;
+      });
+    }
+  }
+  document.addEventListener("pointerup",e=>finishDrag(e,false),true);
+  document.addEventListener("pointercancel",e=>finishDrag(e,true),true);
+  document.addEventListener("click",e=>{if(suppressClick){e.preventDefault();e.stopPropagation();}},true);
+
+  // ---------- P0-2 / P2-7 / P1-3 曲线画布：触屏平移、点按数值、长按卡尺 ----------
+  let td=null;
+  cv.addEventListener("pointerdown",e=>{
+    if(!isTouch(e)||e.button!==0)return;
+    e.preventDefault();
+    try{cv.setPointerCapture(e.pointerId);}catch(_){}
+    const R=chartRange();
+    td={id:e.pointerId,sx:e.clientX,sy:e.clientY,R,moved:false,long:false};
+    td.timer=setTimeout(()=>{
+      if(td&&!td.moved){
+        placeCursorAt(td.sx,td.sy);
+        td.long=true;
+      }
+    },560);
+  });
+  cv.addEventListener("pointermove",e=>{
+    if(!td||e.pointerId!==td.id)return;
+    e.preventDefault();
+    if(!td.moved&&(Math.abs(e.clientX-td.sx)>5||Math.abs(e.clientY-td.sy)>5)){
+      td.moved=true;
+      if(td.timer){clearTimeout(td.timer);td.timer=null;}
+    }
+    if(td.moved){
+      const r=cv.getBoundingClientRect(),L=64,pw=r.width-L-16;
+      const dx=(e.clientX-td.sx)/pw*(td.R.x1-td.R.x0);
+      S.view={x0:td.R.x0-dx,x1:td.R.x1-dx,y0:td.R.y0,y1:td.R.y1};S.hasView=true;drawChart();
+    }
+  });
+  function finishChart(e){
+    if(!td||e.pointerId!==td.id)return;
+    const t=td;td=null;
+    if(t.timer){clearTimeout(t.timer);t.timer=null;}
+    if(t.moved||t.long){hoverX=null;drawChart();return;}
+    showTipAt(e.clientX,e.clientY); // 轻点显示数值
+    clearTimeout(window.__tipHideTimer);
+    window.__tipHideTimer=setTimeout(()=>{hoverX=null;const tip=$("tip");if(tip)tip.style.display="none";drawChart();},3000);
+  }
+  cv.addEventListener("pointerup",finishChart);
+  cv.addEventListener("pointercancel",finishChart);
+
+  // ---------- P1-3 信号卡片长按切换高亮 ----------
+  let hd=null;
+  $("liveGrid").addEventListener("pointerdown",e=>{
+    if(!isTouch(e))return;
+    const card=e.target.closest(".sig-card[data-hlkey]");
+    if(!card||e.target!==card)return; // 与双击条件一致：仅边框/留白
+    hd={x:e.clientX,y:e.clientY,card,key:card.dataset.hlkey};
+    hd.timer=setTimeout(()=>{if(hd)toggleCardHighlight(hd.key,hd.card);},560);
+  },true);
+  ["pointermove","pointerup","pointercancel"].forEach(ev=>{
+    $("liveGrid").addEventListener(ev,e=>{
+      if(!hd)return;
+      if(ev==="pointermove"&&Math.abs(e.clientX-hd.x)<9&&Math.abs(e.clientY-hd.y)<9)return;
+      if(hd.timer){clearTimeout(hd.timer);hd.timer=null;}
+      hd=null;
+    },true);
+  });
+})();
 
 // Safari 兼容：旧版 Safari 的 100vh 按最大视口计算，底部悬浮条会被浏览器工具栏裁掉；用实际可见高度兜底
 (function(){
