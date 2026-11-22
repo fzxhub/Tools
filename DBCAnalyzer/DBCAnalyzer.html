@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>DBC 信号解析工具</title>
 <style>
 :root,[data-theme="dark"]{
@@ -35,6 +35,8 @@
   --chart-band:rgba(154,103,0,.10); --chart-cursor-bg:#ffffffee;
 }
 *{box-sizing:border-box}
+/* 平板/触屏：禁止双击缩放页面，避免连续点击放大按钮时整页被放大 */
+button,.btn,.tab,[role="button"],.chart-nav,.table-pager,.play-controls,.sidebar-actions{touch-action:manipulation}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;overflow:hidden}
 a{color:var(--accent);text-decoration:none}
