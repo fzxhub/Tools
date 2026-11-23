@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>UDS 诊断查询工具箱 V1.0.0</title>
+<title>UDS 诊断查询工具箱</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='28%25' r='72%25'%3E%3Cstop offset='0' stop-color='%23bdf5d5'/%3E%3Cstop offset='45%25' stop-color='%234fd39a'/%3E%3Cstop offset='100%25' stop-color='%230f8a5a'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='13' fill='url(%23g)'/%3E%3Ccircle cx='11.5' cy='10.5' r='3.1' fill='%23ffffff' opacity='.55'/%3E%3C/svg%3E">
 <style>
 /* ================= 主题 =================
@@ -115,22 +115,7 @@ html[data-theme="light"] .uds-logo{
   background:linear-gradient(145deg,#2fae7a,#1f8a5a);
   box-shadow:0 6px 22px -6px rgba(47,174,122,.45), inset 0 1px 0 rgba(255,255,255,.6);
 }
-/* 版本号徽章：紧跟在工具箱后面，小号等宽字 + 淡青底，不抢标题 */
-h1 .ver{
-  display:inline-block; vertical-align:2px; margin-left:9px;
-  font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.6px;
-  line-height:1.55; padding:1px 7px; border-radius:20px; white-space:nowrap;
-  color:var(--acc); border:1px solid rgba(var(--acc-rgb),0.42);
-  background:rgba(var(--acc-rgb),0.1);
-}
 .sub{color:var(--txt3); font-size:12.5px}
-.legend{display:flex; gap:16px; margin-top:12px; flex-wrap:wrap; font-size:12px; color:var(--txt2)}
-/* 版权：压在页头第二行最右侧，和帧类型图例同一行，不抢标题与主题按钮 */
-.legend .cr{
-  margin-left:auto; color:var(--txt3); font-size:11.5px;
-  padding-left:14px; white-space:nowrap; letter-spacing:.2px;
-}
-.legend i{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; vertical-align:middle}
 /* ---------- tabs ---------- */
 nav.tabs{
   display:flex; gap:2px; padding:0 20px; border-bottom:1px solid var(--line);
@@ -763,6 +748,90 @@ header,nav.tabs{
 @media (pointer:coarse){
   .idrow{touch-action:pan-y; -webkit-touch-callout:none}
 }
+
+/* ===== DBC 风格标题栏：顶栏玻璃条 + 标题/副标题同组 ===== */
+header{
+  padding:10px 18px 12px;
+  background:color-mix(in srgb, var(--bg2) 82%, transparent);
+  -webkit-backdrop-filter:blur(18px) saturate(1.25); backdrop-filter:blur(18px) saturate(1.25);
+  box-shadow:0 12px 34px -26px rgba(0,0,0,.75);
+}
+.hd-top{gap:12px;align-items:center}
+header h1{font-size:16px;font-weight:600;letter-spacing:.2px}
+header .sub{color:var(--txt3);font-size:12px;font-weight:400}
+.uds-logo{
+  width:42px;height:42px;flex:none;align-self:center;border-radius:11px;
+  background:linear-gradient(145deg,#4fd39a,#2f9e68);
+  color:#fff;font:700 13px/42px var(--mono);text-align:center;letter-spacing:.5px;
+  box-shadow:0 6px 22px -6px rgba(79,201,148,.60), inset 0 1px 0 rgba(255,255,255,.35);
+}
+html[data-theme="light"] .uds-logo{background:linear-gradient(145deg,#2fae7a,#1f8a5a);box-shadow:0 6px 22px -6px rgba(47,174,122,.45), inset 0 1px 0 rgba(255,255,255,.6)}
+
+/* ===== 页签移入标题栏：DBC 同款胶囊切换（覆盖原下划线导航） ===== */
+.tab-bar{display:flex;justify-content:center;margin-top:12px}
+nav.tabs{
+  position:relative; display:flex; align-items:center; gap:2px; max-width:100%;
+  padding:4px; border-radius:999px; overflow-x:auto; scrollbar-width:none;
+  background:rgba(190,255,220,.07); border:1px solid rgba(210,255,230,.16);
+  -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3);
+  transition:background .35s ease, border-color .35s ease;
+}
+html[data-theme="light"] nav.tabs{background:rgba(255,255,255,.6);border-color:rgba(18,60,36,.12)}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs .knob{
+  position:absolute; top:4px; left:4px; width:0; height:calc(100% - 8px);
+  border-radius:999px; background:rgba(190,255,220,.16);
+  box-shadow:0 2px 10px rgba(0,0,0,.18); pointer-events:none;
+  transition:left .34s cubic-bezier(.22,.61,.36,1), width .34s cubic-bezier(.22,.61,.36,1), background .35s ease;
+}
+html[data-theme="light"] nav.tabs .knob{background:#ffffff;box-shadow:0 2px 10px rgba(25,90,55,.16)}
+nav.tabs .tab{
+  position:relative; z-index:1; flex:none;
+  background:none; border:0; border-bottom:0; border-radius:999px;
+  color:var(--txt3); padding:7px 14px; font-size:12.5px; line-height:1;
+  cursor:pointer; white-space:nowrap; transition:color .25s ease;
+}
+nav.tabs .tab:hover{color:var(--txt)}
+nav.tabs .tab.active{color:var(--txt);font-weight:600}
+nav.tabs .tab:focus-visible{outline:2px solid rgba(79,201,148,.85);outline-offset:2px}
+@media(max-width:780px){
+  .tab-bar{justify-content:flex-start}
+  nav.tabs .tab{padding:7px 11px;font-size:12px}
+}
+
+/* 页签胶囊与主题胶囊同一行：页签居左、主题靠右 */
+.hd-ctrl{display:flex;align-items:center;gap:14px;margin-top:12px;flex-wrap:wrap}
+.hd-ctrl .tab-bar{margin-top:0;min-width:0;flex:1 1 auto;justify-content:flex-start}
+.hd-ctrl .theme-sw{margin-left:auto}
+
+/* 标题栏合并为一行：logo/标题 | 页签胶囊 | 帮助按钮 | 主题胶囊 四列布局 */
+header{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:16px}
+.hd-ctrl{display:contents}
+.hd-top{flex-wrap:nowrap;gap:12px;min-width:0}
+.hd-top .sub{white-space:nowrap}
+.hd-ctrl .tab-bar{margin-top:0;justify-content:center;min-width:0;flex:initial}
+@media(max-width:1100px){
+  header{gap:10px;padding:10px 12px}
+  .hd-top .sub{display:none}
+  nav.tabs .tab{padding:7px 9px}
+}
+@media(max-width:760px){
+  header h1{display:none}
+  .hd-ctrl .tab-bar{justify-content:flex-start}
+}
+
+/* 所有页面铺满整个视口宽度 */
+main{max-width:none;margin:0;padding:20px 24px 60px}
+@media(max-width:780px){main{padding:16px 14px 48px}}
+
+/* 标题块与 logo 并排：主标题一行，说明+版权紧贴其下，保持原顶栏高度 */
+.hd-top{display:flex;flex-direction:row;align-items:center;gap:12px;min-width:0}
+.hd-title-block{display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0}
+.hd-top h1{white-space:nowrap}
+.hd-top .sub{display:block;white-space:nowrap;line-height:1.35}
+.hd-top .sub span{font-size:12px;color:var(--txt3);font-weight:400}
+.hd-top .sub .cr{font-size:10.5px;color:var(--txt3);opacity:.8;margin-left:6px}
+@media(max-width:1100px){.hd-top .sub{display:none}}
 </style>
 <script>
 /* 主题在首屏绘制前就落地，避免从暗到亮闪一下 */
@@ -782,8 +851,24 @@ header,nav.tabs{
 <header>
   <div class="hd-top">
     <div class="uds-logo" aria-hidden="true">UDS</div>
-    <h1>UDS 诊断查询<span>工具箱</span><span class="ver">V1.0.0</span></h1>
-    <span class="sub">ISO 14229-1 · ISO 15765-2 (ISO-TP) 离线解析</span>
+    <div class="hd-title-block">
+      <h1>UDS 诊断查询<span>工具箱</span></h1>
+      <div class="sub"><span>UDS、CANTP离线解析</span><span class="cr">© 版权归冯宗兴所有</span></div>
+    </div>
+  </div>
+  <div class="hd-ctrl">
+  <div class="tab-bar">
+    <nav class="tabs" id="tabs" role="tablist" aria-label="功能切换">
+      <span class="knob" aria-hidden="true"></span>
+      <button class="tab active" data-pane="decode" role="tab" aria-selected="true">帧解析</button>
+      <button class="tab" data-pane="services" role="tab" aria-selected="false">服务查询</button>
+      <button class="tab" data-pane="nrc" role="tab" aria-selected="false">NRC 详情</button>
+      <button class="tab" data-pane="did" role="tab" aria-selected="false">DID 查询</button>
+      <button class="tab" data-pane="routine" role="tab" aria-selected="false">例程 31</button>
+      <button class="tab" data-pane="dtc" role="tab" aria-selected="false">DTC 解码</button>
+      <button class="tab" data-pane="ref" role="tab" aria-selected="false">参数速查</button>
+    </nav>
+  </div>
     <div class="theme-sw" role="group" aria-label="外观主题">
       <button type="button" data-th="auto" title="跟随系统外观" aria-pressed="true">
         <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2.5a5.5 5.5 0 0 0 0 11z" fill="currentColor"/></svg>
@@ -799,25 +884,9 @@ header,nav.tabs{
       </button>
     </div>
   </div>
-  <div class="legend">
-    <span><i style="background:var(--sf)"></i>单帧 SF</span>
-    <span><i style="background:var(--ff)"></i>首帧 FF</span>
-    <span><i style="background:var(--cf)"></i>连续帧 CF</span>
-    <span><i style="background:var(--fc)"></i>流控帧 FC</span>
-    <span><i style="background:var(--pci)"></i>PCI 字段</span>
-    <span class="cr">© 版权归冯宗兴所有</span>
-  </div>
 </header>
 
-<nav class="tabs" id="tabs">
-  <button class="tab active" data-pane="decode">帧解析</button>
-  <button class="tab" data-pane="services">服务查询</button>
-  <button class="tab" data-pane="nrc">NRC 详情</button>
-  <button class="tab" data-pane="did">DID 查询</button>
-  <button class="tab" data-pane="routine">例程 31</button>
-  <button class="tab" data-pane="dtc">DTC 解码</button>
-  <button class="tab" data-pane="ref">参数速查</button>
-</nav>
+
 
 <main>
   <!-- ================= DECODE ================= -->
@@ -3955,15 +4024,30 @@ function initTheme(){
 function init(){
   initTheme();
 
-  // tabs
+  // tabs（页签已移入标题栏，胶囊滑块随激活项移动；原 pane 切换逻辑不变）
+  const TAB_NAV = document.getElementById('tabs');
+  function placeTabKnob(){
+    if(!TAB_NAV) return;
+    const knob = TAB_NAV.querySelector('.knob');
+    const active = TAB_NAV.querySelector('.tab.active') || TAB_NAV.querySelector('.tab');
+    if(!knob || !active) return;
+    knob.style.left = active.offsetLeft + 'px';
+    knob.style.width = active.offsetWidth + 'px';
+  }
   document.querySelectorAll('.tab').forEach(t => {
+    t.setAttribute('aria-selected', t.classList.contains('active') ? 'true' : 'false');
     t.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(x => { x.classList.remove('active'); x.setAttribute('aria-selected','false'); });
       document.querySelectorAll('.pane').forEach(x => x.classList.remove('active'));
       t.classList.add('active');
+      t.setAttribute('aria-selected','true');
       document.getElementById('pane-' + t.dataset.pane).classList.add('active');
+      placeTabKnob();
     });
   });
+  window.addEventListener('resize', placeTabKnob);
+  window.addEventListener('load', placeTabKnob);
+  placeTabKnob();
 
   // mode switch
   function setMode(mode){
@@ -4286,5 +4370,73 @@ if(typeof document !== 'undefined' && document.getElementById){
 })();
 </script>
 
+<script>
+/* 统一帮助按钮：与顶栏主题胶囊同款外观（图标 + 文字），内容按工具定制。 */
+(function(){
+  if(document.getElementById('fzHelpBtn') || document.getElementById('helpBtn')) return;
+  var cfg = {"host": ".hd-ctrl", "before": ".fz-theme, .theme-sw", "title": "UDS 诊断查询工具箱 使用帮助", "rows": [["加载", "拖入或选择 ASC / BLF / TRC 日志，工具会在本地完成解析。"], ["页签", "帧解析、服务查询、NRC 详情、DID 查询、例程 31、DTC 解码、参数速查可随时切换。"], ["ID 配置", "帧解析页点击物理 / 功能 / 响应 ID 可切换过滤条件；触屏长按也可选择。"], ["ISO-TP", "多帧会按 ISO 15765-2 自动重组，单帧 / 首帧 / 连续帧 / 流控帧分别标注。"], ["隐私", "所有解析都在浏览器本地完成，日志不会上传。"]]};
+  var css = ''
+    + '.fz-help-btn{display:inline-flex;align-items:center;justify-content:center;width:64px;min-width:64px;height:36px;padding:0 12px;font-size:12.5px;line-height:1;white-space:nowrap;border-radius:999px;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;background:var(--switch-bg,var(--panel,var(--bg2,#131a24)));border:1px solid var(--switch-line,var(--line,var(--border,rgba(255,255,255,.14))));color:var(--fg2,var(--txt3,var(--dim,#9aa7b5)));-webkit-backdrop-filter:var(--glass-blur,blur(14px) saturate(1.3));backdrop-filter:var(--glass-blur,blur(14px) saturate(1.3));box-shadow:0 4px 14px -8px rgba(0,0,0,.5);transition:background .25s,border-color .25s,color .25s,transform .2s}'
+    + '.fz-help-btn:hover{color:var(--fg,var(--txt,var(--text,#e8eef5)));border-color:var(--accent,var(--acc,#4fd39a))}'
+    + '.fz-help-btn:active{transform:translateY(1px)}'
+    + '.fz-help-btn:focus-visible{outline:2px solid var(--accent,var(--acc,#4fd39a));outline-offset:2px}'
+    + '@media(max-width:640px){.fz-help-btn{width:56px;min-width:56px;font-size:11px;padding:0 8px}}'
+    + '.fz-help-mask{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.52);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}'
+    + '.fz-help-mask[hidden]{display:none!important}'
+    + '.fz-help-dialog{width:min(580px,100%);max-height:82vh;overflow:auto;border-radius:16px;padding:18px 20px;color:var(--fg,var(--txt,var(--text,var(--tx,#e8eef5))));background:color-mix(in srgb,var(--panel,var(--bg2,#131a24)) 94%,transparent);border:1px solid var(--border,var(--line,rgba(255,255,255,.14)));box-shadow:0 30px 80px -30px rgba(0,0,0,.8);-webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3)}'
+    + '.fz-help-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}'
+    + '.fz-help-hd strong{font-size:15px;font-weight:650}'
+    + '.fz-help-x{border:0;background:transparent;color:inherit;font-size:22px;line-height:1;cursor:pointer;padding:0 4px;opacity:.7}'
+    + '.fz-help-x:hover{opacity:1}'
+    + '.fz-help-row{display:grid;grid-template-columns:88px minmax(0,1fr);gap:12px;padding:10px 0;border-top:1px solid var(--border,var(--line,rgba(255,255,255,.12)));font-size:12.5px;line-height:1.7}'
+    + '.fz-help-k{font-weight:600;color:var(--accent,#4fd39a)}'
+    + '.fz-help-v{color:var(--fg2,var(--dim,var(--txt3,#9aa7b5)))}'
+    + '.fz-help-ft{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;font-size:11px;opacity:.75}'
+    + '.fz-help-ok{border:1px solid var(--border,var(--line,rgba(255,255,255,.14)));border-radius:999px;padding:5px 14px;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}'
+    + '.fz-help-ok:hover{border-color:var(--accent,#4fd39a)}';
+  var st=document.createElement('style'); st.textContent=css; document.head.appendChild(st);
+
+  var btn=document.createElement('button');
+  btn.type='button'; btn.id='fzHelpBtn'; btn.className='fz-help-btn';
+  btn.setAttribute('aria-haspopup','dialog'); btn.setAttribute('aria-expanded','false');
+  btn.title='查看使用帮助';
+  btn.textContent='帮助';
+  var host=document.querySelector(cfg.host);
+  if(!host) return;
+  var before=cfg.before ? host.querySelector(cfg.before) : null;
+  if(before) host.insertBefore(btn,before); else host.appendChild(btn);
+
+  var mask=document.createElement('div');
+  mask.className='fz-help-mask'; mask.id='fzHelpModal'; mask.hidden=true;
+  var dlg=document.createElement('div');
+  dlg.className='fz-help-dialog'; dlg.setAttribute('role','dialog'); dlg.setAttribute('aria-modal','true');
+  dlg.setAttribute('aria-labelledby','fzHelpTitle');
+  var hd=document.createElement('div'); hd.className='fz-help-hd';
+  var ttl=document.createElement('strong'); ttl.id='fzHelpTitle'; ttl.textContent=cfg.title;
+  var x=document.createElement('button'); x.type='button'; x.className='fz-help-x'; x.setAttribute('aria-label','关闭'); x.textContent='×';
+  hd.appendChild(ttl); hd.appendChild(x);
+  var bd=document.createElement('div'); bd.className='fz-help-bd';
+  cfg.rows.forEach(function(r){
+    var row=document.createElement('div'); row.className='fz-help-row';
+    var k=document.createElement('div'); k.className='fz-help-k'; k.textContent=r[0];
+    var v=document.createElement('div'); v.className='fz-help-v'; v.textContent=r[1];
+    row.appendChild(k); row.appendChild(v); bd.appendChild(row);
+  });
+  var ft=document.createElement('div'); ft.className='fz-help-ft';
+  var tip=document.createElement('span'); tip.textContent='Esc 或点击空白处关闭';
+  var ok=document.createElement('button'); ok.type='button'; ok.className='fz-help-ok'; ok.textContent='知道了';
+  ft.appendChild(tip); ft.appendChild(ok);
+  dlg.appendChild(hd); dlg.appendChild(bd); dlg.appendChild(ft);
+  mask.appendChild(dlg); document.body.appendChild(mask);
+
+  function open(){mask.hidden=false; btn.setAttribute('aria-expanded','true'); x.focus();}
+  function close(){mask.hidden=true; btn.setAttribute('aria-expanded','false'); btn.focus();}
+  btn.addEventListener('click',open);
+  x.addEventListener('click',close);
+  ok.addEventListener('click',close);
+  mask.addEventListener('click',function(e){if(e.target===mask) close();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape' && !mask.hidden) close();});
+})();
+</script>
 </body>
 </html>

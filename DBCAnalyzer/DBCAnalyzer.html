@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>DBC 信号解析工具</title>
+<title>DBC信号解析</title>
 <style>
 :root,[data-theme="dark"]{
   --bg:#0d1117; --bg2:#161b22; --panel:#161b22; --panel2:#1c2128;
@@ -394,11 +394,17 @@ header,.sidebar,.table-wrap,.chart-box,.live-frame,.modal,.toast,.tip,.cursor-in
   backdrop-filter:blur(18px) saturate(1.25);
 }
 header{
+  height:64px;
   box-shadow:0 12px 34px -26px rgba(0,0,0,.75);
   background:color-mix(in srgb, var(--bg2) 82%, transparent);
   display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:14px;
 }
-header .logo{min-width:0; overflow:hidden; white-space:nowrap}
+header .logo{display:flex;align-items:center;gap:12px;min-width:0;overflow:hidden;white-space:nowrap}
+/* 标题块与 logo 并排：主标题一行，副标题紧贴其下（参考 UDS 工具箱） */
+.brand-title-block{display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0;overflow:hidden}
+.brand-title{font-size:16px;font-weight:600;white-space:nowrap;color:var(--fg)}
+header .logo .sub{color:var(--fg3);font-size:12px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+header .logo .sub .cr{font-size:10.5px;opacity:.8;margin-left:6px}
 .header-actions{justify-self:end; display:flex; align-items:center; gap:8px}
 .sidebar{
   position:relative;
@@ -949,7 +955,7 @@ tbody .sig-row>td{
 <body>
 <div class="app">
   <header>
-    <div class="logo"><span class="mark" aria-hidden="true">DBC</span>DBC 信号解析工具 <span class="sub">CAN / CAN FD · ASC · BLF · TRC</span></div>
+    <div class="logo"><span class="mark" aria-hidden="true">DBC</span><span class="brand-title-block"><span class="brand-title">DBC信号解析</span><span class="sub">CAN / CAN FD · ASC · BLF · TRC <span class="cr">© 版权归冯宗兴所有。</span></span></span></div>
     <div class="tabs" role="tablist" aria-label="页面切换">
       <span class="knob" aria-hidden="true"></span>
       <div class="tab active" data-tab="table" role="tab" aria-selected="true">按帧解码</div>
@@ -1178,7 +1184,7 @@ tbody .sig-row>td{
 </div>
 <div class="modal-mask" id="helpModal">
   <div class="modal help-modal">
-    <h3>DBC 信号解析工具 · 使用帮助</h3>
+    <h3>DBC信号解析 · 使用帮助</h3>
     <div class="mb help-body">
       <div class="note">本工具的所有解析都在浏览器本地完成，文件不会上传服务器。加载新数据会替换当前会话中的自定义信号、曲线、时间卡尺与回放状态，请先导出需要保留的 DBC。</div>
 

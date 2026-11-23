@@ -48,7 +48,9 @@
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font-family:ui-sans-serif,system-ui,"Segoe UI","Microsoft YaHei",sans-serif;font-size:calc(14px * var(--fs));line-height:1.62}
-.wrap{max-width:1320px;margin:0 auto;padding:26px 20px 120px}
+/* 内容区铺满整个页面：不限宽、不居中，只留边距 */
+.wrap{max-width:none;margin:0;padding:0 24px 120px}
+@media(max-width:780px){.wrap{padding:0 14px 120px}}
 h1{font-size:calc(20px * var(--fs));font-weight:600;margin:0 0 6px}
 .sub{color:var(--dim);font-size:calc(13px * var(--fs));margin-bottom:18px;line-height:1.8}
 code{background:var(--sunken);border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--tx2);font-family:ui-monospace,Consolas,monospace;font-size:calc(11.5px * var(--fs))}
@@ -60,7 +62,7 @@ button.primary{background:var(--blue-bg);border-color:var(--blue-bd);color:var(-
 button.primary:hover{background:var(--blue-bg3)}
 
 /* 主题切换 */
-.head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 0 6px}
+.head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:nowrap;margin:0 0 6px}
 /* 标题前的 SHE 圆角矩形徽标：与 AESToolbox / UDSToolbox 同款 */
 .she-logo{
   width:42px; height:42px; flex:none; border-radius:11px;
@@ -73,9 +75,9 @@ html[data-theme="light"] .she-logo{
   background:linear-gradient(145deg,#2fae7a,#1f8a5a);
   box-shadow:0 6px 22px -6px rgba(47,174,122,.45), inset 0 1px 0 rgba(255,255,255,.6);
 }
-.head-brand{display:flex;align-items:center;gap:13px;min-width:0} /* 参考 AES：徽标与标题成组，避免被两端对齐拉开 */
+.head-brand{display:flex;align-items:center;gap:13px;min-width:0;flex:0 1 auto} /* 徽标与标题成组 */
 .head h1{margin:0}
-.themebar{display:flex;align-items:center;gap:9px}
+.themebar{display:flex;align-items:center;gap:9px;flex:none}
 .themebar .tl{font-size:calc(11px * var(--fs));color:var(--faint);font-family:ui-monospace,Consolas,monospace}
 .seg{display:inline-flex;background:var(--btn);border:1px solid var(--line3);border-radius:9px;padding:2px;gap:2px}
 .seg button{background:transparent;border:0;color:var(--dim);padding:4px 12px;border-radius:7px;font-size:calc(11.5px * var(--fs));line-height:1.5}
@@ -254,6 +256,34 @@ body{
   -webkit-backdrop-filter:blur(18px) saturate(1.25);
   backdrop-filter:blur(18px) saturate(1.25);
 }
+
+/* ===== DBC 风格标题栏：全宽玻璃条 + logo/标题块并排（参考 UDS） ===== */
+.head{
+  height:64px; padding:0 18px; margin:0 -24px 14px;
+  flex-wrap:nowrap;
+  background:color-mix(in srgb, var(--bg) 82%, transparent);
+  border:1px solid var(--line); border-left:0; border-right:0; border-radius:0;
+  -webkit-backdrop-filter:blur(18px) saturate(1.25); backdrop-filter:blur(18px) saturate(1.25);
+  box-shadow:0 12px 34px -26px rgba(0,0,0,.75);
+}
+@media(max-width:780px){.head{margin-left:-14px;margin-right:-14px}}
+.head-brand{gap:12px}
+.head h1{font-size:16px;font-weight:600;white-space:nowrap;flex:none}
+.she-logo{
+  width:42px;height:42px;flex:none;border-radius:11px;
+  background:linear-gradient(145deg,#4fd39a,#2f9e68);
+  color:#fff;font:700 13px/42px ui-monospace,Consolas,monospace;text-align:center;letter-spacing:.5px;
+  box-shadow:0 6px 22px -6px rgba(79,201,148,.60), inset 0 1px 0 rgba(255,255,255,.35);
+}
+html[data-theme="light"] .she-logo{background:linear-gradient(145deg,#2fae7a,#1f8a5a);box-shadow:0 6px 22px -6px rgba(47,174,122,.45), inset 0 1px 0 rgba(255,255,255,.6)}
+/* 主标题一行，副标题紧贴其下单行显示 */
+.head-title-block{display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0;overflow:hidden}
+.head .sub{margin:0;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.head .sub .cr{font-size:10.5px;color:var(--dim);opacity:.8;margin-left:6px}
+/* 窄屏保持标题栏单行：副标题优先隐藏 */
+@media(max-width:900px){.head .sub{display:none}}
+@media(max-width:640px){.head{padding:0 12px}}
+@media(max-width:420px){.head h1{font-size:14px}}
 </style>
 </head>
 <body>
@@ -262,7 +292,10 @@ body{
 <div class="head">
   <div class="head-brand">
     <div class="she-logo" aria-hidden="true">SHE</div>
-    <h1>SHE密钥灌装计算</h1>
+    <div class="head-title-block">
+      <h1>SHE密钥灌装计算</h1>
+      <div class="sub">M1-M5计算全流程展示<span class="cr">© 版权归冯宗兴所有</span></div>
+    </div>
   </div>
   <div class="themebar">
     <div class="seg" id="segTheme">
@@ -271,9 +304,6 @@ body{
       <button type="button" data-mode="dark">暗黑</button>
     </div>
   </div>
-</div>
-<div class="sub">
-  SHE密钥灌装M1-M5详细计算架构与步骤展示
 </div>
 
 <!-- 参数 -->
@@ -1021,5 +1051,73 @@ window.__trace={runAll,kdfTrace,cmacTrace,cbcTrace,traceEncrypt,expandKey,kdfTra
 })();
 </script>
 
+<script>
+/* 统一帮助按钮：与顶栏主题胶囊同款外观（图标 + 文字），内容按工具定制。 */
+(function(){
+  if(document.getElementById('fzHelpBtn') || document.getElementById('helpBtn')) return;
+  var cfg = {"host": ".themebar", "before": ".fz-theme, #segTheme", "title": "SHE密钥灌装计算 使用帮助", "rows": [["定位", "SHE 密钥灌装 M1–M5 全流程计算与逐步展示。"], ["参数", "填写 K1 / K2 / K3 / K4、UID 等参数后，下方各阶段会立即重算。"], ["流程", "依次展开 M1 至 M5 查看输入、中间值与输出，结果可一键复制。"], ["位级拆解", "IEEE 754 区域展示浮点数的符号、指数与尾数位。"], ["隐私", "纯本地计算，数据不会离开浏览器。"]]};
+  var css = ''
+    + '.fz-help-btn{display:inline-flex;align-items:center;justify-content:center;width:64px;min-width:64px;height:36px;padding:0 12px;font-size:12.5px;line-height:1;white-space:nowrap;border-radius:999px;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;background:var(--switch-bg,var(--panel,var(--bg2,#131a24)));border:1px solid var(--switch-line,var(--line,var(--border,rgba(255,255,255,.14))));color:var(--fg2,var(--txt3,var(--dim,#9aa7b5)));-webkit-backdrop-filter:var(--glass-blur,blur(14px) saturate(1.3));backdrop-filter:var(--glass-blur,blur(14px) saturate(1.3));box-shadow:0 4px 14px -8px rgba(0,0,0,.5);transition:background .25s,border-color .25s,color .25s,transform .2s}'
+    + '.fz-help-btn:hover{color:var(--fg,var(--txt,var(--text,#e8eef5)));border-color:var(--accent,var(--acc,#4fd39a))}'
+    + '.fz-help-btn:active{transform:translateY(1px)}'
+    + '.fz-help-btn:focus-visible{outline:2px solid var(--accent,var(--acc,#4fd39a));outline-offset:2px}'
+    + '@media(max-width:640px){.fz-help-btn{width:56px;min-width:56px;font-size:11px;padding:0 8px}}'
+    + '.fz-help-mask{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.52);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}'
+    + '.fz-help-mask[hidden]{display:none!important}'
+    + '.fz-help-dialog{width:min(580px,100%);max-height:82vh;overflow:auto;border-radius:16px;padding:18px 20px;color:var(--fg,var(--txt,var(--text,var(--tx,#e8eef5))));background:color-mix(in srgb,var(--panel,var(--bg2,#131a24)) 94%,transparent);border:1px solid var(--border,var(--line,rgba(255,255,255,.14)));box-shadow:0 30px 80px -30px rgba(0,0,0,.8);-webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3)}'
+    + '.fz-help-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}'
+    + '.fz-help-hd strong{font-size:15px;font-weight:650}'
+    + '.fz-help-x{border:0;background:transparent;color:inherit;font-size:22px;line-height:1;cursor:pointer;padding:0 4px;opacity:.7}'
+    + '.fz-help-x:hover{opacity:1}'
+    + '.fz-help-row{display:grid;grid-template-columns:88px minmax(0,1fr);gap:12px;padding:10px 0;border-top:1px solid var(--border,var(--line,rgba(255,255,255,.12)));font-size:12.5px;line-height:1.7}'
+    + '.fz-help-k{font-weight:600;color:var(--accent,#4fd39a)}'
+    + '.fz-help-v{color:var(--fg2,var(--dim,var(--txt3,#9aa7b5)))}'
+    + '.fz-help-ft{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;font-size:11px;opacity:.75}'
+    + '.fz-help-ok{border:1px solid var(--border,var(--line,rgba(255,255,255,.14)));border-radius:999px;padding:5px 14px;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}'
+    + '.fz-help-ok:hover{border-color:var(--accent,#4fd39a)}';
+  var st=document.createElement('style'); st.textContent=css; document.head.appendChild(st);
+
+  var btn=document.createElement('button');
+  btn.type='button'; btn.id='fzHelpBtn'; btn.className='fz-help-btn';
+  btn.setAttribute('aria-haspopup','dialog'); btn.setAttribute('aria-expanded','false');
+  btn.title='查看使用帮助';
+  btn.textContent='帮助';
+  var host=document.querySelector(cfg.host);
+  if(!host) return;
+  var before=cfg.before ? host.querySelector(cfg.before) : null;
+  if(before) host.insertBefore(btn,before); else host.appendChild(btn);
+
+  var mask=document.createElement('div');
+  mask.className='fz-help-mask'; mask.id='fzHelpModal'; mask.hidden=true;
+  var dlg=document.createElement('div');
+  dlg.className='fz-help-dialog'; dlg.setAttribute('role','dialog'); dlg.setAttribute('aria-modal','true');
+  dlg.setAttribute('aria-labelledby','fzHelpTitle');
+  var hd=document.createElement('div'); hd.className='fz-help-hd';
+  var ttl=document.createElement('strong'); ttl.id='fzHelpTitle'; ttl.textContent=cfg.title;
+  var x=document.createElement('button'); x.type='button'; x.className='fz-help-x'; x.setAttribute('aria-label','关闭'); x.textContent='×';
+  hd.appendChild(ttl); hd.appendChild(x);
+  var bd=document.createElement('div'); bd.className='fz-help-bd';
+  cfg.rows.forEach(function(r){
+    var row=document.createElement('div'); row.className='fz-help-row';
+    var k=document.createElement('div'); k.className='fz-help-k'; k.textContent=r[0];
+    var v=document.createElement('div'); v.className='fz-help-v'; v.textContent=r[1];
+    row.appendChild(k); row.appendChild(v); bd.appendChild(row);
+  });
+  var ft=document.createElement('div'); ft.className='fz-help-ft';
+  var tip=document.createElement('span'); tip.textContent='Esc 或点击空白处关闭';
+  var ok=document.createElement('button'); ok.type='button'; ok.className='fz-help-ok'; ok.textContent='知道了';
+  ft.appendChild(tip); ft.appendChild(ok);
+  dlg.appendChild(hd); dlg.appendChild(bd); dlg.appendChild(ft);
+  mask.appendChild(dlg); document.body.appendChild(mask);
+
+  function open(){mask.hidden=false; btn.setAttribute('aria-expanded','true'); x.focus();}
+  function close(){mask.hidden=true; btn.setAttribute('aria-expanded','false'); btn.focus();}
+  btn.addEventListener('click',open);
+  x.addEventListener('click',close);
+  ok.addEventListener('click',close);
+  mask.addEventListener('click',function(e){if(e.target===mask) close();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape' && !mask.hidden) close();});
+})();
+</script>
 </body>
 </html>
