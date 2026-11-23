@@ -202,6 +202,9 @@ button.act.primary:hover{background:var(--acc-hi)}
 .msg.pc-req{--pc:var(--req)}
 .msg.pc-res{--pc:var(--res)}
 .msg[data-pair]{border-left:3px solid var(--pc)}
+/* 报文的 16 进制原始数据也跟随问答配色：请求蓝、响应绿，和左边条/对话标签同一支色。
+   负响应与例程执行失败是错误报文，保留红色语义，不跟着刷成绿。 */
+.msg[data-pair]:not(.neg):not(.fail) > .msg-bd > .hexline{color:var(--pc)}
 .msg.pair-hit{outline:2px solid var(--pc); outline-offset:2px; box-shadow:0 0 18px -4px var(--pc)}
 .pair-tag{
   font-family:var(--mono); font-size:10.5px; line-height:1.7; padding:0 7px; border-radius:20px;
@@ -361,6 +364,20 @@ body.view-simple .msg.force-detail .msg-bd .kv{display:grid}
 body.view-simple .msg.force-detail .msg-bd .fd-panel{display:block}
 body.view-simple .msg.force-detail .msg-bd .hexline{margin-bottom:11px}
 body.view-simple .msg.force-detail .simple-line{display:none}
+/* 负响应 / 例程执行的简约呈现：报文本体与信息统一标红，三行 NRC 说明压成一行。
+   详细模式、以及点「帧明细」临时切详细时仍看完整说明。 */
+.nrc-simple{display:none; margin-top:5px; font-family:var(--mono); font-size:12px;
+  color:var(--neg-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+body.view-simple .msg .nrc-box, body.view-simple .msg .fail-box{display:none}
+body.view-simple .msg .nrc-simple{display:block}
+body.view-simple .msg.force-detail .nrc-simple{display:none}
+body.view-simple .msg.force-detail .nrc-box, body.view-simple .msg.force-detail .fail-box{display:block}
+body.view-simple .msg.neg, body.view-simple .msg.fail{background:rgba(var(--neg-rgb),0.05); border-color:rgba(var(--neg-rgb),0.45)}
+body.view-simple .msg.neg .msg-hd, body.view-simple .msg.fail .msg-hd{background:rgba(var(--neg-rgb),0.09)}
+body.view-simple .msg.neg .hexline, body.view-simple .msg.fail .hexline{
+  color:var(--neg-soft); background:rgba(var(--neg-rgb),0.08); border-color:rgba(var(--neg-rgb),0.28)}
+body.view-simple .msg.neg .simple-line, body.view-simple .msg.neg .sl-meta, body.view-simple .msg.neg .sl-kv,
+body.view-simple .msg.fail .simple-line, body.view-simple .msg.fail .sl-meta, body.view-simple .msg.fail .sl-kv{color:var(--neg-soft-dim)}
 /* 标题栏里的帧明细按钮靠右，和药丸同一行但不挤压 */
 .msg-hd .fd-toggle{margin-left:auto; flex:none}
 /* 简约视图下负响应 / 失败 / 警告 / 提示 / 配对这些必要信息保持原样显示 */
@@ -3333,6 +3350,10 @@ function renderMessage(m, i, mode, pair){
   });
   h += '</div>';
   if(dec.isNeg && dec.nrc){
+    // 简约模式专用的一行红色摘要：详细模式显示下方完整 nrc-box，两种模式信息量一致
+    const nrBrief = 'NRC 0x' + hex2(dec.nrc.c) + ' · ' + dec.nrc.name
+      + '｜' + (dec.nrc.why || dec.nrc.cn) + '｜排查：' + (dec.nrc.tip || '—');
+    h += '<div class="nrc-simple" title="' + esc(nrBrief) + '">' + esc(nrBrief) + '</div>';
     h += '<div class="nrc-box">'
       + '<b>NRC 0x' + hex2(dec.nrc.c) + ' · ' + esc(dec.nrc.name) + '</b><br>'
       + '<span class="lab">含义：</span>' + esc(dec.nrc.why || dec.nrc.cn) + '<br>'
@@ -3340,6 +3361,10 @@ function renderMessage(m, i, mode, pair){
       + '</div>';
   }
   if(dec.fail){
+    // 同上：例程执行失败在简约模式下压成一行红色摘要
+    const failBrief = '例程执行失败 · RoutineStatus = 0x' + hex2(dec.failSt)
+      + ' · 例程 0x' + hex4(dec.failRid) + ' ' + dec.failCn + '｜0x00 才算成功，非 0 按例程语义排查';
+    h += '<div class="nrc-simple" title="' + esc(failBrief) + '">' + esc(failBrief) + '</div>';
     h += '<div class="fail-box">'
       + '<b>例程执行失败：RoutineStatus = 0x' + hex2(dec.failSt) + '</b><br>'
       + '<span class="lab">例程：</span>0x' + hex4(dec.failRid) + ' ' + esc(dec.failCn) + '<br>'
