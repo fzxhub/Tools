@@ -184,25 +184,25 @@ button.act.primary:hover{background:var(--acc-hi)}
    业务上等同失败，所以卡片按负响应同一套颜色标出来 */
 .msg.fail{border-color:rgba(var(--neg-rgb),0.33)}
 .msg.nrc-hit{border-color:var(--neg); box-shadow:0 0 0 3px rgba(var(--neg-rgb),0.2), 0 0 20px rgba(var(--neg-rgb),0.13)}
-/* 报文列表：左侧留出连线通道，请求框与响应框用一条折线连起来
-   通道要够宽：卡片左边缘外 16px 才开始走竖线，否则圆角贴着边框像长了个钩子 */
-.msg-list{position:relative; padding-left:56px}
-.pl-svg{position:absolute; left:0; top:0; overflow:visible; pointer-events:none}
+/* 报文列表：右侧留出连线通道，请求框与响应框用一条折线连起来
+   通道要够宽：卡片右边缘外 16px 才开始走竖线，否则圆角贴着边框像长了个钩子 */
+.msg-list{position:relative; padding-right:56px}
+.pl-svg{position:absolute; right:0; top:0; overflow:visible; pointer-events:none}
 .pl-line{fill:none; stroke:var(--link); stroke-width:1.6; stroke-linecap:round}
 .pl-dot{stroke:none; fill:var(--link)}
-@media(max-width:760px){ .msg-list{padding-left:44px} }
-/* 统计条与「未归入报文的帧」面板同报文卡片左边缘对齐：
-   报文卡片在 .msg-list 内，左侧留了配对连线通道（宽屏 56 / 窄屏 44）。
-   两块只补左边距，右边缘仍贴容器右侧，与报文卡片右边缘天然对齐。 */
-.statbar, .lone-panel{margin-left:56px}
-@media(max-width:760px){ .statbar, .lone-panel{margin-left:44px} }
+@media(max-width:760px){ .msg-list{padding-right:44px} }
+/* 统计条、CAN ID 面板、ID 不成对提示条、空状态与「未归入报文的帧」面板同报文卡片右边缘对齐：
+   报文卡片在 .msg-list 内，右侧留了配对连线通道（宽屏 56 / 窄屏 44）。
+   这几块只补右边距，左边缘仍贴容器左侧，与报文卡片左边缘天然对齐。 */
+.statbar, .lone-panel, details.idpanel, .pairhint, .empty-panel{margin-right:56px}
+@media(max-width:760px){ .statbar, .lone-panel, details.idpanel, .pairhint, .empty-panel{margin-right:44px} }
 /* ---- 请求 / 响应成对关联 ----
    只有两种颜色：请求蓝、响应绿。同一次问答靠颜色 + 同一个「对话 N」序号认出，不再多种配色。
    这两支走 --req / --res，跟帧类型色（--sf/--ff）解耦，改帧类型配色不会牵动配对语义。 */
 .msg.pc-req{--pc:var(--req)}
 .msg.pc-res{--pc:var(--res)}
-.msg[data-pair]{border-left:3px solid var(--pc)}
-/* 报文的 16 进制原始数据也跟随问答配色：请求蓝、响应绿，和左边条/对话标签同一支色。
+.msg[data-pair]{border-left:3px solid var(--pc); border-right:3px solid var(--pc)}
+/* 报文的 16 进制原始数据也跟随问答配色：请求蓝、响应绿，和左右色条/对话标签同一支色。
    负响应与例程执行失败是错误报文，保留红色语义，不跟着刷成绿。 */
 .msg[data-pair]:not(.neg):not(.fail) > .msg-bd > .hexline{color:var(--pc)}
 .msg.pair-hit{outline:2px solid var(--pc); outline-offset:2px; box-shadow:0 0 18px -4px var(--pc)}
@@ -984,7 +984,7 @@ main{max-width:none;margin:0;padding:20px 24px 60px}
       </div>
 
       <div id="out-area">
-        <div class="panel">
+        <div class="panel empty-panel">
           <div class="panel-bd">
             <div class="empty">
               <div style="font-family:var(--mono); font-size:34px; color:var(--line2)">&#60; &#62;</div>
@@ -2684,15 +2684,16 @@ function renderStatBar(ctx, msgN, negN, failN){
 }
 
 /* ---- 配对连线 ----
-   报文列表左侧留一条通道，把「请求框」和它的「响应框」用一条折线连起来：
-   从请求卡片左边缘水平出去，沿通道竖直走，再水平回到响应卡片左边缘。
+   报文列表右侧留一条通道，把「请求框」和它的「响应框」用一条折线连起来：
+   从请求卡片右边缘水平出去，沿通道竖直走，再水平回到响应卡片右边缘。
    多条对话交错时按区间贪心分配车道（lane），竖线才不会叠在一起。 */
 
 /* 纯几何：给一组 {top,bottom} 算出落笔路径，方便单独验证
-   indent：卡片左边缘到第一条车道的水平引出长度，要留够圆角 + 一小段直线 */
+   indent：卡片右边缘到第一条车道的水平引出长度，要留够圆角 + 一小段直线 */
 function pairLinkPaths(items, opt){
   const o = Object.assign({gutter:56, laneGap:9, indent:16, maxLane:5, radius:6}, opt || {});
-  const edge = o.gutter - 1;              // 线端离卡片边框 1px，避免压住 3px 的蓝/绿左边条
+  // 右侧通道：SVG 左边界就是卡片右边缘，线端离边框 1px，不压卡片边框
+  const edge = 1;
 
   // 按「一次问答」聚合车道：同一 pair 的多条响应（0x78 挂起）竖线段直接重合，
   // 不再各占一条道。否则响应一多通道就得加宽，报文卡片的可用宽度跟着被压。
@@ -2729,15 +2730,16 @@ function pairLinkPaths(items, opt){
     const bottom = Math.max(it.top, it.bottom);
     const g = owner.get(it);
     const vis = Math.min(g ? g.lane : 0, Math.max(0, o.maxLane - 1));
-    const x = Math.max(4, edge - o.indent - o.laneGap * vis);
-    const lead = edge - x;                // 这段水平线要同时容纳两个圆角
+    // 向右画：车道从卡片右边缘往右排，上限留 2px 不越出通道
+    const x = Math.min(o.gutter - 2, Math.max(4, edge + o.indent + o.laneGap * vis));
+    const lead = x - edge;                // 这段水平线要同时容纳两个圆角
     const r = Math.max(1, Math.min(o.radius, (bottom - top) / 2, lead / 2));
     it.lane = vis;
     it.x = x;
-    it.dotX = edge - 5;                   // 端点圆点落在水平引出段上，不碰边框
+    it.dotX = edge + 5;                   // 端点圆点落在水平引出段上，不碰边框
     it.path = 'M' + edge + ',' + top
-      + 'H' + (x + r) + 'Q' + x + ',' + top + ' ' + x + ',' + (top + r)
-      + 'V' + (bottom - r) + 'Q' + x + ',' + bottom + ' ' + (x + r) + ',' + bottom
+      + 'H' + (x - r) + 'Q' + x + ',' + top + ' ' + x + ',' + (top + r)
+      + 'V' + (bottom - r) + 'Q' + x + ',' + bottom + ' ' + (x - r) + ',' + bottom
       // 收尾必须用 L（吃 x,y 两个参数）。H 只吃一个 x，写成 H55,340.5 会
       // 被当成「H55」+ 隐式重复的「H340.5」，凭空多画一条横穿卡片的长线。
       + 'L' + edge + ',' + bottom;
@@ -2821,8 +2823,8 @@ function drawPairLinks(){
   let gutter = 56;
   try {
     if(typeof getComputedStyle === 'function'){
-      const pl = parseFloat(getComputedStyle(list).paddingLeft);
-      if(isFinite(pl) && pl > 0) gutter = pl;
+      const pr = parseFloat(getComputedStyle(list).paddingRight);
+      if(isFinite(pr) && pr > 0) gutter = pr;
     }
   } catch(e){}
 
@@ -2851,7 +2853,7 @@ function drawPairLinks(){
     p.setAttribute('class', 'pl-line');
     p.setAttribute('d', it.path);
     g.appendChild(p);
-    // 两端各点一个圆点，落在水平引出段上（不再压在卡片左边条上）
+    // 两端各点一个圆点，落在水平引出段上（不压卡片边框）
     [[it.top, it.qIsTop], [it.bottom, !it.qIsTop]].forEach(pair => {
       const c = document.createElementNS(NS, 'circle');
       c.setAttribute('class', 'pl-dot ' + (pair[1] ? 'req' : 'res'));
@@ -3155,7 +3157,7 @@ function applyId(hex, slot){
 }
 
 function emptyBox(t){
-  return '<div class="panel"><div class="panel-bd"><div class="empty">' + t + '</div></div></div>';
+  return '<div class="panel empty-panel"><div class="panel-bd"><div class="empty">' + t + '</div></div></div>';
 }
 
 /* 「帧明细」入口放在报文标题栏：简约 / 详细两种模式都看得到。
